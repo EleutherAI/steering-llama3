@@ -5,3 +5,5 @@ argparse
 accelerate
 datasets
 concept-erasure
+numpy
+matplotlib

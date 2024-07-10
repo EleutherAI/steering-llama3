@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 import shlex
 
 from common import Settings, parse_settings_args
+from utils import force_save
 from refusal_test_open_ended import eval_prompt, EVAL_MODEL
 
 
@@ -31,9 +32,11 @@ def evaluate(settings, mults, port):
                 scores.append(score)
             prompt["scores"] = scores
 
-        with open(settings.response_path(mult), "w") as f:
-            json.dump(prompts, f)
-
+        force_save(
+            prompts,
+            settings.response_path(mult),
+            mode="json"
+        )
 
 if __name__ == "__main__":
     parser = ArgumentParser()

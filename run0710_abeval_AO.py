@@ -17,7 +17,7 @@ port = 8000
 for dataset in ["ab"]:
     for leace in [None, "leace", "orth"]:
         for shift in [0, .125]:
-            cmd = f"python eval.py --dataset {dataset} --mults $(seq {-2+shift} .25 2) --port {port} --server"
+            cmd = f"python eval.py --dataset {dataset} --mults $(seq {-2+shift} .25 0) --port {port} --server"
             if leace is not None:
                 cmd += f" --leace {leace}"
             commands[f"eval_{dataset}_{leace}_{shift}"] = cmd

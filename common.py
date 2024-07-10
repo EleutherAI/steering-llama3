@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Union
 
 from utils import cached_property
 
@@ -25,7 +25,7 @@ def parts_to_settings(parts):
         'P': 'positive',
     }
     valmap = {
-        'L': int,
+        'L': lambda x: int(x) if x != "all" else x,
         'T': float,
         'X': float,
         'P': lambda x: x == "+",
@@ -43,7 +43,7 @@ class Settings:
     dataset: str = "prompts"
     leace: Optional[str] = None
     temp: float = 1.5
-    layer: Optional[int] = None
+    layer: Optional[Union[int, str]] = None
 
     @cached_property
     def model_id(self):
@@ -81,12 +81,21 @@ class Settings:
         }
         return f"artifacts/responses/responses_{parts_to_suffix(parts)}.json"
 
+    def plot_path(self):
+        parts = self.response_parts()
+        return f"plots/plot_{parts_to_suffix(parts)}.png"
+
+
+    def __str__(self):
+        parts = self.response_parts()
+        return ' '.join(f"{k}:{v}" for k, v in parts.items())
+
 
 def parse_settings_args(parser, generate=False):
     parser.add_argument("--dataset", type=str, choices=["prompts", "caa", "ab"], default="prompts")
 
     if not generate:
-        parser.add_argument("--layer", type=int, default=15)
+        parser.add_argument("--layer", type=lambda x: int(x) if x != "all" else x, default=15)
         parser.add_argument("--temp", type=float, default=1.5)
         parser.add_argument("--leace", type=str, default=None, choices=["leace", "orth"])
 

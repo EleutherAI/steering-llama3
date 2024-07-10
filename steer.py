@@ -4,11 +4,12 @@ import json
 from tqdm import tqdm
 from argparse import ArgumentParser
 import os
+from typing import Optional, Union
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from concept_erasure import LeaceEraser
+from concept_erasure import LeaceEraser, QuadraticEditor, QuadraticFitter
 
 from common import Settings, parse_settings_args
 from refusal_test_open_ended import get_harmful_test_prompts, get_harmless_test_prompts
@@ -19,10 +20,19 @@ from utils import get_layer_list, force_save, cached_property
 class ActivationSteerer:
     vector: torch.Tensor
     settings: Settings
-    eraser: LeaceEraser = None
+    eraser: Optional[Union[LeaceEraser, QuadraticEditor]] = None
 
     def steer_activations(self, multiplier: float):
         u = self.vector
+
+        if settings.leace == "quad":
+            target = 2 if multiplier == 0 else int(multiplier > 0)
+
+            def hook(model, input, output):
+                output[0][:] = self.eraser.transport(output[0].to(torch.float64), 2, target).to(output[0].dtype)
+                return output
+
+            return hook
 
         def hook(model, input, output):
             u_ = u.to(output[0].device)
@@ -41,7 +51,24 @@ def load_steerer(settings: Settings, layer: int):
     path = settings.vec_path()
     vec = torch.load(path).cpu()
 
-    if settings.leace:
+    if settings.leace == "quad":
+        print("Fitting quadratic editor...")
+        # [N, 1, D] -> [N, D]
+        pos = torch.load(settings.acts_path(positive=True)).cuda().squeeze(1).to(torch.float64)
+        neg = torch.load(settings.acts_path(positive=False)).cuda().squeeze(1).to(torch.float64)
+
+        fitter = QuadraticFitter(pos.shape[-1], 3, dtype=torch.float64)
+        fitter.update_single(pos, 2)
+        fitter.update_single(neg, 2)
+        fitter.update_single(pos, 1)
+        fitter.update_single(neg, 0)
+
+        editor = fitter.editor()
+        print("Editor fitted!")
+
+        steerer = ActivationSteerer(vec, settings, editor)
+
+    elif settings.leace:
         print("Fitting eraser...")
         # [N, 1, D] -> [N, D]
         pos = torch.load(settings.acts_path(positive=True)).cuda().squeeze(1)
@@ -95,11 +122,14 @@ def steer(
 
     layer = settings.layer
 
-    steerer = load_steerer(settings, layer)
-
     prompts = get_prompts(settings, num_prompts)
 
     layer_list = get_layer_list(model)
+
+    if layer == "all":
+        steerers = {i: load_steerer(settings, i) for i in range(len(layer_list))}
+    else:
+        steerers = {layer: load_steerer(settings, layer)}
 
     for mult in mults:
         print(f"Steering activations by {mult}")
@@ -107,8 +137,11 @@ def steer(
         if os.path.exists(settings.response_path(mult)):
             print(f"Responses already saved to {settings.response_path(mult)}. Skipping...")
             continue
-
-        handle = layer_list[layer].register_forward_hook(steerer.steer_activations(mult))
+        
+        handles = {
+            i: layer_list[i].register_forward_hook(steerer.steer_activations(mult))
+            for i, steerer in steerers.items()
+        }
 
         with torch.no_grad():
             for prompt in tqdm(prompts):
@@ -141,7 +174,8 @@ def steer(
                 
                 prompt["responses"] = responses
 
-        handle.remove()
+        for handle in handles.values():
+            handle.remove()
 
         force_save(
             prompts,
