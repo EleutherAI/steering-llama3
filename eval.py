@@ -42,6 +42,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--port", type=int, default=8005)
     parser.add_argument("--server", action="store_true")
+    parser.add_argument("--wait", type=int, default=120)
 
     args, settings = parse_settings_args(parser)
 
@@ -50,8 +51,8 @@ if __name__ == "__main__":
         
         process = subprocess.Popen(command)
         
-        print(f"Server started on port {args.port}. Waiting 2min for it to be ready...")
-        sleep(120)
+        print(f"Server started on port {args.port}. Waiting {args.wait} sec for it to be ready...")
+        sleep(args.wait)
     try:
         evaluate(settings, args.mults, args.port)
         print("Done!")
