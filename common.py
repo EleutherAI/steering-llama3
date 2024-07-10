@@ -57,12 +57,12 @@ class Settings:
             'M': self.model,
             'D': self.dataset,
             'L': self.layer,
-            'C': self.leace,
         }
 
     def response_parts(self):
         return self.vec_parts() | {
             'T': self.temp,
+            'C': self.leace,
         }
 
     def acts_path(self, positive):
@@ -88,6 +88,7 @@ def parse_settings_args(parser, generate=False):
     if not generate:
         parser.add_argument("--layer", type=int, default=15)
         parser.add_argument("--temp", type=float, default=1.5)
+        parser.add_argument("--leace", type=str, default=None, choices=["leace", "orth"])
 
     args = parser.parse_args()
 
@@ -97,7 +98,8 @@ def parse_settings_args(parser, generate=False):
         settings = Settings(
             dataset=args.dataset, 
             layer=args.layer, 
-            temp=args.temp
+            temp=args.temp,
+            leace=args.leace,
         )
 
     return args, settings

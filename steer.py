@@ -8,14 +8,18 @@ import os
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+from concept_erasure import LeaceEraser
+
 from common import Settings, parse_settings_args
 from refusal_test_open_ended import get_harmful_test_prompts, get_harmless_test_prompts
-from utils import get_layer_list, force_save
+from utils import get_layer_list, force_save, cached_property
 
 
 @dataclass
 class ActivationSteerer:
     vector: torch.Tensor
+    settings: Settings
+    eraser: LeaceEraser = None
 
     def steer_activations(self, multiplier: float):
         u = self.vector
@@ -23,7 +27,10 @@ class ActivationSteerer:
         def hook(model, input, output):
             u_ = u.to(output[0].device)
 
-            output[0][:, :, :] += multiplier * u_
+            if self.eraser is not None:
+                output[0][:] = self.eraser(output[0].to(torch.float64)).to(output[0].dtype)
+
+            output[0][:] += multiplier * u_
             return output
             
         return hook
@@ -33,7 +40,23 @@ def load_steerer(settings: Settings, layer: int):
     settings.layer = layer
     path = settings.vec_path()
     vec = torch.load(path).cpu()
-    steerer = ActivationSteerer(vec)
+
+    if settings.leace:
+        print("Fitting eraser...")
+        # [N, 1, D] -> [N, D]
+        pos = torch.load(settings.acts_path(positive=True)).cuda().squeeze(1)
+        neg = torch.load(settings.acts_path(positive=False)).cuda().squeeze(1)
+        # [2N, D]
+        x = torch.cat([pos, neg]).to(torch.float64)
+        z = torch.cat([torch.ones(len(pos)), torch.zeros(len(neg))]).cuda().to(torch.float64)
+
+        eraser = LeaceEraser.fit(x, z, method=settings.leace)
+        print("Eraser fitted!")
+
+        steerer = ActivationSteerer(vec, settings, eraser)
+    else:
+        steerer = ActivationSteerer(vec, settings)
+
     return steerer
 
 def get_prompts(settings: Settings, num):
