@@ -57,7 +57,7 @@ def load_steerer(settings: Settings, layer: int):
         pos = torch.load(settings.acts_path(positive=True)).cuda().squeeze(1).to(torch.float64)
         neg = torch.load(settings.acts_path(positive=False)).cuda().squeeze(1).to(torch.float64)
 
-        fitter = QuadraticFitter(pos.shape[-1], 3, dtype=torch.float64)
+        fitter = QuadraticFitter(pos.shape[-1], 3, dtype=torch.float64, device=pos.device)
         fitter.update_single(pos, 2)
         fitter.update_single(neg, 2)
         fitter.update_single(pos, 1)
