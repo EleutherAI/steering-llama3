@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 import pandas as pd
 from tqdm import tqdm
+import json
+import argparse
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -162,12 +164,17 @@ def generate_vectors(
     # fwd passes
     with torch.no_grad():
         for n in tqdm(negatives):
-            input_ids = tokenize(n, tokenizer, settings)
+            input_ids = tokenize(n, tokenizer)
             input_ids = input_ids.to(model.device)
             model(input_ids)
 
+    for handle in n_handles:
+        handle.remove()
+
+    print("Saving activations and steering vectors...")
+
     # save activations and steering vectors
-    for layer, mod in enumerate(layer_list):
+    for layer, mod in tqdm(enumerate(layer_list)):
         pos = torch.stack(adders[mod].positives)
         neg = torch.stack(adders[mod].negatives)
         settings.layer = layer

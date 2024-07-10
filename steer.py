@@ -30,8 +30,9 @@ class ActivationSteerer:
 
 
 def load_steerer(settings: Settings, layer: int):
-    path = settings.vec_path(layer)
-    vec = torch.load(f"artifacts/vecs/{path}").cpu()
+    settings.layer = layer
+    path = settings.vec_path()
+    vec = torch.load(path).cpu()
     steerer = ActivationSteerer(vec)
     return steerer
 

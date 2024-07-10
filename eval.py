@@ -1,11 +1,12 @@
 from argparse import ArgumentParser
 import json
+import subprocess
 from tqdm import tqdm
 
 from transformers import AutoTokenizer
 import shlex
 
-from common import Settings
+from common import Settings, parse_settings_args
 from refusal_test_open_ended import eval_prompt, EVAL_MODEL
 
 
