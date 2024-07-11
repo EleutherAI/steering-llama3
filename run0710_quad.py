@@ -7,12 +7,12 @@ commands = {}
 
 for dataset in ["ab", "caa", "prompts"]:
     cmd = f"python steer.py --dataset {dataset} --mults -1 1 --leace quad"
-    commands[f"steer_{dataset}_{leace}_{shift}"] = cmd
+    commands[f"steer_{dataset}"] = cmd
 
 port = 8000
 for dataset in ["ab", "caa", "prompts"]:
     cmd = f"python eval.py --dataset {dataset} --mults -1 1 -port {port} --server --leace quad"
-    commands[f"eval_{dataset}_{leace}_{shift}"] = cmd
+    commands[f"eval_{dataset}"] = cmd
     port += 1
 
 dependencies = {job: [] for job in commands}
