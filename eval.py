@@ -45,7 +45,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--port", type=int, default=8005)
     parser.add_argument("--server", action="store_true")
-    parser.add_argument("--wait", type=int, default=120)
+    parser.add_argument("--wait", type=int, default=150)
 
     args, settings = parse_settings_args(parser)
 
