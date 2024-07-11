@@ -69,13 +69,13 @@ class Settings:
             'C': self.leace,
         }
 
-    def acts_path(self, positive, layer=None):
+    def acts_path(self, positive, layer):
         parts = self.vec_parts(layer) | {
             'P': "+" if positive else "-",
         }
         return f"artifacts/acts/acts_{parts_to_suffix(parts)}.pt"
 
-    def vec_path(self, layer=None):
+    def vec_path(self, layer):
         parts = self.vec_parts(layer)
         return f"artifacts/vecs/vec_{parts_to_suffix(parts)}.pt"
 
