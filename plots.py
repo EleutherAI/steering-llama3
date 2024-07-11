@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 from argparse import ArgumentParser
 
 
-def plot(settings, mults):
+def plot(settings, mults, verbose=False):
 
     for label in ["harmful", "harmless"]:
         means = []
@@ -13,7 +13,8 @@ def plot(settings, mults):
         q75s = []
 
         for mult in mults:
-            print(f"Loading {settings.response_path(mult)}")
+            if verbose:
+                print(f"Loading {settings.response_path(mult)}")
             with open(settings.response_path(mult)) as f:
                 prompts = json.load(f)
 
@@ -42,8 +43,10 @@ def plot(settings, mults):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--mults", type=float, nargs="+", required=True)
+    parser.add_argument("-v", "--verbose", action="store_true")
 
     args, settings = parse_settings_args(parser)
 
-    plot(settings, args.mults)
-    print("Done!")
+    plot(settings, args.mults, args.verbose)
+    if args.verbose:
+        print("Done!")
