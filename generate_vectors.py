@@ -33,6 +33,10 @@ class ActivationSaver:
     def record_activations(self, positive: bool):
         def hook(model, input, output):
             act = output[0]
+            # if shape is [N, M], pad to [1, N, M]
+            # I have made some poor choices in the past
+            if len(act.shape) == 2:
+                act = act.unsqueeze(0)
             act = act.detach()[:, -1, :].cpu()
             if positive:
                 self.positives.append(act)
