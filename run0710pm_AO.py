@@ -22,7 +22,7 @@ for dataset in ["caa", "prompts"]:
             cmd += f" --leace {leace}"
         commands[f"steer_{dataset}_{leace}"] = cmd
 
-        cmd = f"python eval.py --dataset {dataset} --mults $(seq -2 .25 2) --layer all --residual"
+        cmd = f"python eval.py --dataset {dataset} --mults $(seq -2 .25 2) --layer all --residual --port {port} --server"
         if leace is not None:
             cmd += f" --leace {leace}"
         commands[f"eval_{dataset}_{leace}"] = cmd
