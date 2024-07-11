@@ -1,2 +1,4 @@
 artifacts/
 logs/
+plots/
+__pycache__/
