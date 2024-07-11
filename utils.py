@@ -24,6 +24,12 @@ def cached_property(func: Callable) -> property:
     return _cached_property
 
 
+def get_residual_layer_list(model: torch.nn.Module) -> list:
+    layer_list = get_layer_list(model)
+
+    return [sublayer for layer in layer_list for sublayer in [layer.self_attn, layer.mlp]]
+
+
 def get_layer_list(model: torch.nn.Module) -> torch.nn.ModuleList:
     """Get "the" list of layers from a model.
 

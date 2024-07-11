@@ -21,6 +21,7 @@ def parts_to_settings(parts):
         'L': 'layer',
         'T': 'temp',
         'C': 'leace',
+        'R': 'residual',
         'X': 'mult',
         'P': 'positive',
     }
@@ -29,6 +30,7 @@ def parts_to_settings(parts):
         'T': float,
         'X': float,
         'P': lambda x: x == "+",
+        'R': lambda x: x == "res",
     }
     both = {keymap[k]: valmap.get(k, str)(v) for k, v in parts.items()}
     skip = {'mult', 'positive'}
@@ -44,6 +46,7 @@ class Settings:
     leace: Optional[str] = None
     temp: float = 1.5
     layer: Optional[Union[int, str]] = None
+    residual: bool = False
 
     @cached_property
     def model_id(self):
@@ -56,6 +59,7 @@ class Settings:
         return {
             'M': self.model,
             'D': self.dataset,
+            'R': 'res' if self.residual else None,
             'L': self.layer,
         }
 
@@ -88,11 +92,12 @@ class Settings:
 
     def __str__(self):
         parts = self.response_parts()
-        return ' '.join(f"{k}:{v}" for k, v in parts.items())
+        return ' '.join(f"{k}:{v}" for k, v in parts.items() if v is not None)
 
 
 def parse_settings_args(parser, generate=False):
     parser.add_argument("--dataset", type=str, choices=["prompts", "caa", "ab"], default="prompts")
+    parser.add_argument("--residual", action="store_true")
 
     if not generate:
         parser.add_argument("--layer", type=lambda x: int(x) if x != "all" else x, default=15)
@@ -102,10 +107,11 @@ def parse_settings_args(parser, generate=False):
     args = parser.parse_args()
 
     if generate:
-        settings = Settings(dataset=args.dataset)
+        settings = Settings(dataset=args.dataset, residual=args.residual)
     else:
         settings = Settings(
             dataset=args.dataset, 
+            residual=args.residual,
             layer=args.layer, 
             temp=args.temp,
             leace=args.leace,

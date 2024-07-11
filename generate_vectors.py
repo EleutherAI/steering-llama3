@@ -7,7 +7,7 @@ import argparse
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from utils import cached_property, get_layer_list, force_save
+from utils import cached_property, get_layer_list, force_save, get_residual_layer_list
 from common import Settings, parse_settings_args
 
 
@@ -137,7 +137,7 @@ def generate_vectors(
     # load positive and negative prompts
     positives, negatives = get_prompts(settings)
 
-    layer_list = get_layer_list(model)
+    layer_list = get_residual_layer_list(model) if settings.residual else get_layer_list(model)
 
     adders = {mod: ActivationSaver() for mod in layer_list}
 

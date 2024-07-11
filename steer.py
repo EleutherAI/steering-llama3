@@ -124,7 +124,7 @@ def steer(
 
     prompts = get_prompts(settings, num_prompts)
 
-    layer_list = get_layer_list(model)
+    layer_list = get_residual_layer_list(model) if settings.residual else get_layer_list(model)
 
     if layer == "all":
         steerers = {i: load_steerer(settings, i) for i in range(len(layer_list))}
