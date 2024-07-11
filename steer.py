@@ -47,8 +47,7 @@ class ActivationSteerer:
 
 
 def load_steerer(settings: Settings, layer: int):
-    settings.layer = layer
-    path = settings.vec_path()
+    path = settings.vec_path(layer)
     vec = torch.load(path).cpu()
 
     if settings.leace == "quad":

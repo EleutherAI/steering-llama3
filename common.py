@@ -55,12 +55,12 @@ class Settings:
         else:
             raise ValueError(f"Unknown model: {self.model}")
 
-    def vec_parts(self):
+    def vec_parts(self, layer=None):
         return {
             'M': self.model,
             'D': self.dataset,
             'R': 'res' if self.residual else None,
-            'L': self.layer,
+            'L': self.layer if layer is None else layer,
         }
 
     def response_parts(self):
@@ -69,14 +69,14 @@ class Settings:
             'C': self.leace,
         }
 
-    def acts_path(self, positive):
-        parts = self.vec_parts() | {
+    def acts_path(self, positive, layer=None):
+        parts = self.vec_parts(layer) | {
             'P': "+" if positive else "-",
         }
         return f"artifacts/acts/acts_{parts_to_suffix(parts)}.pt"
 
-    def vec_path(self):
-        parts = self.vec_parts()
+    def vec_path(self, layer=None):
+        parts = self.vec_parts(layer)
         return f"artifacts/vecs/vec_{parts_to_suffix(parts)}.pt"
 
     def response_path(self, mult):
