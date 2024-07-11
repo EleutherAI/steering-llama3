@@ -13,7 +13,7 @@ from concept_erasure import LeaceEraser, QuadraticEditor, QuadraticFitter
 
 from common import Settings, parse_settings_args
 from refusal_test_open_ended import get_harmful_test_prompts, get_harmless_test_prompts
-from utils import get_layer_list, force_save, cached_property
+from utils import get_layer_list, force_save, cached_property, get_residual_layer_list
 
 
 @dataclass
