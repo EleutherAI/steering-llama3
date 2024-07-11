@@ -53,8 +53,8 @@ def load_steerer(settings: Settings, layer: int):
     if settings.leace == "quad":
         print("Fitting quadratic editor...")
         # [N, 1, D] -> [N, D]
-        pos = torch.load(settings.acts_path(positive=True)).cuda().squeeze(1).to(torch.float64)
-        neg = torch.load(settings.acts_path(positive=False)).cuda().squeeze(1).to(torch.float64)
+        pos = torch.load(settings.acts_path(positive=True, layer=layer)).cuda().squeeze(1).to(torch.float64)
+        neg = torch.load(settings.acts_path(positive=False, layer=layer)).cuda().squeeze(1).to(torch.float64)
 
         fitter = QuadraticFitter(pos.shape[-1], 3, dtype=torch.float64, device=pos.device)
         fitter.update_single(pos, 2)
@@ -70,8 +70,8 @@ def load_steerer(settings: Settings, layer: int):
     elif settings.leace:
         print("Fitting eraser...")
         # [N, 1, D] -> [N, D]
-        pos = torch.load(settings.acts_path(positive=True)).cuda().squeeze(1)
-        neg = torch.load(settings.acts_path(positive=False)).cuda().squeeze(1)
+        pos = torch.load(settings.acts_path(positive=True, layer=layer)).cuda().squeeze(1)
+        neg = torch.load(settings.acts_path(positive=False, layer=layer)).cuda().squeeze(1)
         # [2N, D]
         x = torch.cat([pos, neg]).to(torch.float64)
         z = torch.cat([torch.ones(len(pos)), torch.zeros(len(neg))]).cuda().to(torch.float64)
