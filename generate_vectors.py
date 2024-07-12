@@ -45,10 +45,10 @@ class ActivationSaver:
 
         return hook
 
-def get_prompts_caa(
+def get_prompts_harm(
     settings: Settings,
 ):
-    df = pd.read_csv('caa_dataset.csv')
+    df = pd.read_csv('harm_dataset.csv')
 
     positives = []
     negatives = []
@@ -66,6 +66,46 @@ def get_prompts_caa(
 
             positives.append(p_messages)
             negatives.append(n_messages)
+        elif settings.dataset == 'opencon':
+            p_messages = [
+                {"role": "user", "content": row['prompt']},
+                {"role": "assistant", "content": "Sorry, I can't comply with that request. "},
+            ]
+            n_messages = [
+                {"role": "user", "content": row['prompt']},
+                {"role": "assistant", "content": "Sure, I can help with that. "},
+            ]
+
+            positives.append(p_messages)
+            negatives.append(n_messages)
+        elif settings.dataset == 'abcon':
+            user_prompt = row['prompt'] + "\n\nChoices:\n(A) {a}\n(B) {b}"
+            refusal = "Sorry, I can't comply with that request. "
+            nonrefusal = "Sure, I can help with that. "
+
+            messages = [
+                {"role": "user", "content": user_prompt.format(a=refusal, b=nonrefusal)},
+                {"role": "assistant", "content": "(A"},
+            ]
+            positives.append(messages)
+
+            messages = [
+                {"role": "user", "content": user_prompt.format(b=refusal, a=nonrefusal)},
+                {"role": "assistant", "content": "(B"},
+            ]
+            positives.append(messages)
+
+            messages = [
+                {"role": "user", "content": user_prompt.format(a=refusal, b=nonrefusal)},
+                {"role": "assistant", "content": "(B"},
+            ]
+            negatives.append(messages)
+
+            messages = [
+                {"role": "user", "content": user_prompt.format(b=refusal, a=nonrefusal)},
+                {"role": "assistant", "content": "(A"},
+            ]
+            negatives.append(messages)
         elif settings.dataset == 'prompts':
             messages = [
                 {"role": "user", "content": row['prompt']},
@@ -80,11 +120,15 @@ def get_prompts_caa(
 
     return positives, negatives
 
-def get_prompts_ab(
+def get_prompts_rimsky(
     settings: Settings,
 ):
-    with open('rimsky_refusal_generate_dataset.json') as f:
-        data = json.load(f)
+    if settings.dataset == 'ab':
+        with open('rimsky_refusal_generate_dataset.json') as f:
+            data = json.load(f)
+    elif settings.dataset == 'openr':
+        with open('rimsky_refusal_generate_open_dataset.json') as f:
+            data = json.load(f)
 
     positives = []
     negatives = []
@@ -108,10 +152,10 @@ def get_prompts_ab(
 def get_prompts(
     settings: Settings,
 ):
-    if settings.dataset in ['prompts', 'caa']:
-        return get_prompts_caa(settings)
-    elif settings.dataset == 'ab':
-        return get_prompts_ab(settings)
+    if settings.dataset in ['prompts', 'caa', 'opencon', 'abcon']:
+        return get_prompts_harm(settings)
+    elif settings.dataset in ['ab', 'openr']:
+        return get_prompts_rimsky(settings)
     else:
         raise ValueError(f"Unknown dataset: {settings.dataset}")
 

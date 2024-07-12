@@ -9,6 +9,12 @@ hf_token = os.getenv("HF_TOKEN")
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)#, token=hf_token)
 #%%
+
+tokenizer.apply_chat_template(
+    [{"role": "system", "content": "dog dog dog (A) (B) (A) dog dog"}],
+    add_generation_prompt=False,
+)
+#%%
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
     torch_dtype=torch.bfloat16,

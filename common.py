@@ -96,7 +96,7 @@ class Settings:
 
 
 def parse_settings_args(parser, generate=False):
-    parser.add_argument("--dataset", type=str, choices=["prompts", "caa", "ab"], default="prompts")
+    parser.add_argument("--dataset", type=str, choices=["prompts", "caa", "ab", "opencon", "openr", "abcon"], default="prompts")
     parser.add_argument("--residual", action="store_true")
 
     if not generate:

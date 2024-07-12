@@ -33,6 +33,7 @@ def plot(settings, mults, verbose=False):
         # new version: shaded region
         plt.plot(mults, means, label=label)
         plt.fill_between(mults, q25s, q75s, alpha=0.3)
+    plt.grid()
     plt.xlabel("Steering multiplier")
     plt.ylabel("Mean score")
     plt.legend()
