@@ -1,11 +1,16 @@
+#%%
+import os
+import sys
 import json
 import numpy as np
-from common import Settings, parse_settings_args
+from common import Settings, parse_settings_args, suffix_to_parts, parts_to_settings
 from matplotlib import pyplot as plt
 from argparse import ArgumentParser
+from dataclasses import asdict
 
 
 def plot(settings, mults, verbose=False):
+    plt.figure()
 
     for label in ["harmful", "harmless"]:
         means = []
@@ -39,9 +44,36 @@ def plot(settings, mults, verbose=False):
     plt.legend()
     plt.title(settings)
     plt.savefig(settings.plot_path())
+    plt.close()
 
+#%%
+def plot_all():
+    settings_mults = {}
+    for filename in os.listdir("artifacts/responses"):
+        #print(filename)
+        suffix = filename.split("responses_")[1].split(".json")[0]
+        if suffix.endswith("__pretty"):
+            continue
+        
+        # open to check for scores
+        with open(f"artifacts/responses/{filename}") as f:
+            prompts = json.load(f)
+        if not prompts or "scores" not in prompts[0]:
+            continue
+
+        settings, notkwargs = parts_to_settings(suffix_to_parts(suffix))
+        settings_mults[(settings)] = settings_mults.get((settings), []) + [notkwargs["mult"]]
+
+    for settings in settings_mults:
+        mults = sorted(settings_mults[settings])
+        plot(settings, mults)
+
+#%%
 
 if __name__ == "__main__":
+    if len(sys.argv) == 1:
+        plot_all()
+        sys.exit(0)
     parser = ArgumentParser()
     parser.add_argument("--mults", type=float, nargs="+", required=True)
     parser.add_argument("-v", "--verbose", action="store_true")

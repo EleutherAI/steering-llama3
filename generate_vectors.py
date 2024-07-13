@@ -7,9 +7,14 @@ import argparse
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+from concept_erasure import LeaceFitter
+
 from utils import cached_property, get_layer_list, force_save, get_residual_layer_list
 from common import Settings, parse_settings_args
 
+
+A_TOKEN = 4444  # '(A'
+B_TOKEN = 5462  # '(B'
 
 @dataclass
 class ActivationSaver:
@@ -29,6 +34,13 @@ class ActivationSaver:
     @cached_property
     def steering_vector(self):
         return self.positive_mean - self.negative_mean
+
+    def logit_steering_vector(self, logodds):
+        x = torch.cat(self.positives)
+        z = torch.cat(logodds)
+        fitter = LeaceFitter.fit(x, z)
+        # return sigma_xz / sigma_z
+        return fitter.sigma_xz.squeeze(-1) / torch.std(z)
 
     def record_activations(self, positive: bool):
         def hook(model, input, output):
@@ -189,6 +201,9 @@ def generate_vectors(
 
     adders = {mod: ActivationSaver() for mod in layer_list}
 
+    if settings.logit:
+        logodds = []
+
     # set p hooks
     p_handles = [mod.register_forward_hook(
         adders[mod].record_activations(positive=True)
@@ -199,10 +214,39 @@ def generate_vectors(
         for p in tqdm(positives):
             input_ids = tokenize(p, tokenizer)
             input_ids = input_ids.to(model.device)
-            model(input_ids)
+            
+            if settings.logit:
+                last_tok = input_ids[:, -1]
+                assert last_tok == A_TOKEN or last_tok == B_TOKEN
+                match_tok, nonmatch_tok = (A_TOKEN, B_TOKEN) if last_tok == A_TOKEN else (B_TOKEN, A_TOKEN)
+
+                output = model(input_ids[:, :-1])
+
+                logodd = (output.logits[:, -1, match_tok] - output.logits[:, -1, nonmatch_tok]).cpu()
+                logodds.append(logodd)
+                
+            else:
+                model(input_ids)
 
     for handle in p_handles:
         handle.remove()
+
+    if settings.logit:
+        print("Saving activations and steering vectors...")
+
+        # save activations and steering vectors
+        for layer, mod in tqdm(enumerate(layer_list)):
+            pos = torch.stack(adders[mod].positives)
+            neg = torch.stack(adders[mod].negatives)
+            force_save(pos, settings.acts_path(positive=True, layer=layer))
+            force_save(neg, settings.acts_path(positive=False, layer=layer))
+
+            steering_vector = adders[mod].logit_steering_vector(logodds)
+            force_save(steering_vector, settings.vec_path(layer=layer))
+        
+        print("Done!")
+        return
+
 
     # set n hooks
     n_handles = [mod.register_forward_hook(

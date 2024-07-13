@@ -22,6 +22,7 @@ def parts_to_settings(parts):
         'T': 'temp',
         'C': 'leace',
         'R': 'residual',
+        'G': 'logit',
         'X': 'mult',
         'P': 'positive',
     }
@@ -31,6 +32,7 @@ def parts_to_settings(parts):
         'X': float,
         'P': lambda x: x == "+",
         'R': lambda x: x == "res",
+        'G': lambda x: x == "log",
     }
     both = {keymap[k]: valmap.get(k, str)(v) for k, v in parts.items()}
     skip = {'mult', 'positive'}
@@ -39,7 +41,7 @@ def parts_to_settings(parts):
     return Settings(**kwargs), notkwargs
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Settings:
     model: str = "llama3"
     dataset: str = "prompts"
@@ -47,6 +49,7 @@ class Settings:
     temp: float = 1.5
     layer: Optional[Union[int, str]] = None
     residual: bool = False
+    logit: bool = False
 
     @cached_property
     def model_id(self):
@@ -60,6 +63,7 @@ class Settings:
             'M': self.model,
             'D': self.dataset,
             'R': 'res' if self.residual else None,
+            'G': 'log' if self.logit else None,
             'L': self.layer if layer is None else layer,
         }
 
@@ -98,6 +102,7 @@ class Settings:
 def parse_settings_args(parser, generate=False):
     parser.add_argument("--dataset", type=str, choices=["prompts", "caa", "ab", "opencon", "openr", "abcon"], default="prompts")
     parser.add_argument("--residual", action="store_true")
+    parser.add_argument("--logit", action="store_true")
 
     if not generate:
         parser.add_argument("--layer", type=lambda x: int(x) if x != "all" else x, default=15)
@@ -112,6 +117,7 @@ def parse_settings_args(parser, generate=False):
         settings = Settings(
             dataset=args.dataset, 
             residual=args.residual,
+            logit=args.logit,
             layer=args.layer, 
             temp=args.temp,
             leace=args.leace,
