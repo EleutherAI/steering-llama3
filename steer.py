@@ -21,8 +21,8 @@ class ActivationSteerer:
     vector: torch.Tensor
     settings: Settings
     eraser: Optional[Union[LeaceEraser, QuadraticEditor]] = None
-    start: int = 0
-    end: int = -1
+    start: Optional[int] = None
+    end: Optional[int] = None
 
     def steer_activations(self, multiplier: float):
         u = self.vector
@@ -166,6 +166,15 @@ def steer(
                         tokenizer.eos_token_id,
                         tokenizer.convert_tokens_to_ids("<|eot_id|>")
                     ]
+
+                    if settings.toks == "before":
+                        for steerer in steerers.values():
+                            steerer.start = None
+                            steerer.end = input_ids.shape[-1] - 1
+                    elif settings.toks == "after":
+                        for steerer in steerers.values():
+                            steerer.start = input_ids.shape[-1] - 1
+                            steerer.end = None
 
                     outputs = model.generate(
                         input_ids,
