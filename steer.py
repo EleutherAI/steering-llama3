@@ -21,6 +21,8 @@ class ActivationSteerer:
     vector: torch.Tensor
     settings: Settings
     eraser: Optional[Union[LeaceEraser, QuadraticEditor]] = None
+    start: int = 0
+    end: int = -1
 
     def steer_activations(self, multiplier: float):
         u = self.vector
@@ -29,7 +31,7 @@ class ActivationSteerer:
             target = 2 if multiplier == 0 else int(multiplier > 0)
 
             def hook(model, input, output):
-                output[0][:] = self.eraser.transport(output[0].to(torch.float64), 2, target).to(output[0].dtype)
+                output[0][:, self.start:self.end, :] = self.eraser.transport(output[0][:, self.start:self.end, :].to(torch.float64), 2, target).to(output[0].dtype)
                 return output
 
             return hook
@@ -38,9 +40,9 @@ class ActivationSteerer:
             u_ = u.to(output[0].device)
 
             if self.eraser is not None:
-                output[0][:] = self.eraser(output[0].to(torch.float64)).to(output[0].dtype)
+                output[0][:, self.start:self.end, :] = self.eraser(output[0][:, self.start:self.end, :].to(torch.float64)).to(output[0].dtype)
 
-            output[0][:] += multiplier * u_
+            output[0][:, self.start:self.end, :] += multiplier * u_
             return output
             
         return hook
@@ -51,6 +53,8 @@ def load_steerer(settings: Settings, layer: int):
     vec = torch.load(path).cpu()
 
     if settings.leace == "quad":
+        if settings.logit:
+            raise ValueError("Logit steering not supported with quadratic eraser")
         print("Fitting quadratic editor...")
         # [N, 1, D] -> [N, D]
         pos = torch.load(settings.acts_path(positive=True, layer=layer)).cuda().squeeze(1).to(torch.float64)
@@ -68,16 +72,21 @@ def load_steerer(settings: Settings, layer: int):
         steerer = ActivationSteerer(vec, settings, editor)
 
     elif settings.leace:
-        print("Fitting eraser...")
-        # [N, 1, D] -> [N, D]
-        pos = torch.load(settings.acts_path(positive=True, layer=layer)).cuda().squeeze(1)
-        neg = torch.load(settings.acts_path(positive=False, layer=layer)).cuda().squeeze(1)
-        # [2N, D]
-        x = torch.cat([pos, neg]).to(torch.float64)
-        z = torch.cat([torch.ones(len(pos)), torch.zeros(len(neg))]).cuda().to(torch.float64)
+        if settings.logit:
+            print("Loading logit eraser...")
+            eraser = torch.load(settings.eraser_path(layer))
+            print("Eraser loaded!")
+        else:
+            print("Fitting eraser...")
+            # [N, 1, D] -> [N, D]
+            pos = torch.load(settings.acts_path(positive=True, layer=layer)).cuda().squeeze(1)
+            neg = torch.load(settings.acts_path(positive=False, layer=layer)).cuda().squeeze(1)
+            # [2N, D]
+            x = torch.cat([pos, neg]).to(torch.float64)
+            z = torch.cat([torch.ones(len(pos)), torch.zeros(len(neg))]).cuda().to(torch.float64)
 
-        eraser = LeaceEraser.fit(x, z, method=settings.leace)
-        print("Eraser fitted!")
+            eraser = LeaceEraser.fit(x, z, method=settings.leace)
+            print("Eraser fitted!")
 
         steerer = ActivationSteerer(vec, settings, eraser)
     else:

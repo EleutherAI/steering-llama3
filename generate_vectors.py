@@ -35,12 +35,12 @@ class ActivationSaver:
     def steering_vector(self):
         return self.positive_mean - self.negative_mean
 
-    def logit_steering_vector(self, logodds):
-        x = torch.cat(self.positives)
-        z = torch.cat(logodds)
+    def logit_vector_and_eraser(self, logodds):
+        x = torch.cat(self.positives).cuda().to(torch.float64)
+        z = torch.cat(logodds).cuda().to(torch.float64)
         fitter = LeaceFitter.fit(x, z)
         # return sigma_xz / sigma_z
-        return fitter.sigma_xz.squeeze(-1) / torch.std(z)
+        return fitter.sigma_xz.squeeze(-1) / torch.std(z), fitter.eraser
 
     def record_activations(self, positive: bool):
         def hook(model, input, output):
@@ -239,8 +239,9 @@ def generate_vectors(
             pos = torch.stack(adders[mod].positives)
             force_save(pos, settings.acts_path(positive=True, layer=layer))
 
-            steering_vector = adders[mod].logit_steering_vector(logodds)
+            steering_vector, eraser = adders[mod].logit_vector_and_eraser(logodds)
             force_save(steering_vector, settings.vec_path(layer=layer))
+            force_save(eraser, settings.eraser_path(layer=layer))
         
         print("Done!")
         return

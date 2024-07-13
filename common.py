@@ -21,6 +21,7 @@ def parts_to_settings(parts):
         'L': 'layer',
         'T': 'temp',
         'C': 'leace',
+        'K': 'toks',
         'R': 'residual',
         'G': 'logit',
         'X': 'mult',
@@ -50,6 +51,7 @@ class Settings:
     layer: Optional[Union[int, str]] = None
     residual: bool = False
     logit: bool = False
+    toks: Optional[str] = None
 
     @cached_property
     def model_id(self):
@@ -71,6 +73,7 @@ class Settings:
         return self.vec_parts() | {
             'T': self.temp,
             'C': self.leace,
+            'K': self.toks,
         }
 
     def acts_path(self, positive, layer):
@@ -82,6 +85,10 @@ class Settings:
     def vec_path(self, layer):
         parts = self.vec_parts(layer)
         return f"artifacts/vecs/vec_{parts_to_suffix(parts)}.pt"
+
+    def eraser_path(self, layer):
+        parts = self.vec_parts(layer)
+        return f"artifacts/vecs/eraser_{parts_to_suffix(parts)}.pt"
 
     def response_path(self, mult):
         parts = self.response_parts() | {
@@ -108,6 +115,7 @@ def parse_settings_args(parser, generate=False):
         parser.add_argument("--layer", type=lambda x: int(x) if x != "all" else x, default=15)
         parser.add_argument("--temp", type=float, default=1.5)
         parser.add_argument("--leace", type=str, default=None, choices=["leace", "orth", "quad"])
+        parser.add_argument("--toks", type=str, default=None, choices=["before", "after"])
 
     args = parser.parse_args()
 
@@ -125,6 +133,7 @@ def parse_settings_args(parser, generate=False):
             layer=args.layer, 
             temp=args.temp,
             leace=args.leace,
+            toks=args.toks,
         )
 
     return args, settings
