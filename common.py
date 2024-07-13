@@ -112,7 +112,11 @@ def parse_settings_args(parser, generate=False):
     args = parser.parse_args()
 
     if generate:
-        settings = Settings(dataset=args.dataset, residual=args.residual)
+        settings = Settings(
+            dataset=args.dataset, 
+            residual=args.residual,
+            logit=args.logit,
+        )
     else:
         settings = Settings(
             dataset=args.dataset, 
