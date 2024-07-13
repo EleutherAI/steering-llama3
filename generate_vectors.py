@@ -237,9 +237,7 @@ def generate_vectors(
         # save activations and steering vectors
         for layer, mod in tqdm(enumerate(layer_list)):
             pos = torch.stack(adders[mod].positives)
-            neg = torch.stack(adders[mod].negatives)
             force_save(pos, settings.acts_path(positive=True, layer=layer))
-            force_save(neg, settings.acts_path(positive=False, layer=layer))
 
             steering_vector = adders[mod].logit_steering_vector(logodds)
             force_save(steering_vector, settings.vec_path(layer=layer))
