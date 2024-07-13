@@ -6,7 +6,7 @@ name = "0713toks"
 commands = {}
 port = 8000
 
-for dataset in ["opencon", "prompts"]:
+for dataset in ["ab", "prompts"]:
     for toks in ["before", "after"]:
         cmd = f"python steer.py --dataset {dataset} --mults $(seq -2 .2 2) --toks {toks}"
         # if leace is not None:
