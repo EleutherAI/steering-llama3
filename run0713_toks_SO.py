@@ -6,6 +6,20 @@ name = "0713toks"
 commands = {}
 port = 8000
 
+for dataset in ["abcon"]:
+    for leace in [None, "leace", "orth"]:
+        for shift in [0, .1]:
+            cmd = f"python steer.py --dataset {dataset} --mults $(seq {-2+shift} .2 2) --layer all --residual --logit"
+            if leace is not None:
+                cmd += f" --leace {leace}"
+            commands[f"steer_{dataset}_{leace}_{shift}"] = cmd
+
+            cmd = f"python eval.py --dataset {dataset} --mults $(seq {-2+shift} .2 2) --layer all --residual --logit --port {port} --server"
+            if leace is not None:
+                cmd += f" --leace {leace}"
+            commands[f"eval_{dataset}_{leace}_{shift}"] = cmd
+            port += 1
+
 for dataset in ["ab"]:
     for toks in ["before", "after"]:
         cmd = f"python steer.py --dataset {dataset} --mults $(seq -4 .4 4)"
@@ -27,6 +41,20 @@ for dataset in ["ab"]:
         cmd = f"python eval.py --dataset {dataset} --mults $(seq -2 .2 2) --residual --layer all --port {port} --server"
         if toks is not None:
             cmd += f" --toks {toks}"
+        commands[f"eval_res_{dataset}_{toks}"] = cmd
+        port += 1
+
+
+for dataset in ["opencon", "openr"]:
+    for toks in [None]:
+        cmd = f"python steer.py --dataset {dataset} --mults $(seq -2 .2 2) --residual --layer all"
+        # if leace is not None:
+        #     cmd += f" --leace {leace}"
+        commands[f"steer_res_{dataset}_{toks}"] = cmd
+
+        cmd = f"python eval.py --dataset {dataset} --mults $(seq -2 .2 2) --residual --layer all --port {port} --server"
+        # if leace is not None:
+        #     cmd += f" --leace {leace}"
         commands[f"eval_res_{dataset}_{toks}"] = cmd
         port += 1
 
