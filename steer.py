@@ -31,7 +31,7 @@ class ActivationSteerer:
             target = 2 if multiplier == 0 else int(multiplier > 0)
 
             def hook(model, input, output):
-                output[0][:, self.start:self.end, :] = self.eraser.transport(output[0][:, self.start:self.end, :].to(torch.float64), 2, target).to(output[0].dtype)
+                output[0][..., self.start:self.end, :] = self.eraser.transport(output[0][..., self.start:self.end, :].to(torch.float64), 2, target).to(output[0].dtype)
                 return output
 
             return hook
@@ -39,12 +39,10 @@ class ActivationSteerer:
         def hook(model, input, output):
             u_ = u.to(output[0].device)
 
-            print(output[0].shape)
-
             if self.eraser is not None:
-                output[0][:, self.start:self.end, :] = self.eraser(output[0][:, self.start:self.end, :].to(torch.float64)).to(output[0].dtype)
+                output[0][..., self.start:self.end, :] = self.eraser(output[0][..., self.start:self.end, :].to(torch.float64)).to(output[0].dtype)
 
-            output[0][:, self.start:self.end, :] += multiplier * u_
+            output[0][..., self.start:self.end, :] += multiplier * u_
             return output
             
         return hook
