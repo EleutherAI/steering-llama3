@@ -39,6 +39,8 @@ class ActivationSteerer:
         def hook(model, input, output):
             u_ = u.to(output[0].device)
 
+            print(output[0].shape)
+
             if self.eraser is not None:
                 output[0][:, self.start:self.end, :] = self.eraser(output[0][:, self.start:self.end, :].to(torch.float64)).to(output[0].dtype)
 
