@@ -14,12 +14,12 @@ starts = list(np.round(np.arange(-0.2, 0.21, .04), 3))[:7]
 for dataset in ["prompts"]:
     for leace in [None]:
         for start in starts:
-            cmd = f"python steer.py --dataset {dataset} --mults {start} {start+0.02} --layer all"
+            cmd = f"python steering/steer.py --dataset {dataset} --mults {start} {start+0.02} --layer all"
             if leace is not None:
                 cmd += f" --leace {leace}"
             commands[f"steer_{dataset}_{leace}_{start}"] = cmd
 
-            cmd = f"python eval.py --dataset {dataset} --mults {start} {start+0.02} --layer all --port {port} --server"
+            cmd = f"python steering/eval.py --dataset {dataset} --mults {start} {start+0.02} --layer all --port {port} --server"
             if leace is not None:
                 cmd += f" --leace {leace}"
             commands[f"eval_{dataset}_{leace}_{start}"] = cmd
