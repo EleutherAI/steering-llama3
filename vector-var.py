@@ -1,7 +1,7 @@
 # %%
 import torch
 
-from common import Settings
+from steering.common import Settings
 
 # %%
 settings = Settings()
