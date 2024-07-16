@@ -19,7 +19,7 @@ for dataset in ["ab"]:
         for layer in ["all", 15]:
             cmd_suffix = f"--dataset {dataset}"
             if behavior is not None:
-                cmd_suffix += "--behavior {behavior}"
+                cmd_suffix += f" --behavior {behavior}"
             if layer == "all":
                 cmd_suffix += " --residual"
             cmd = f"python steering/generate_vectors.py {cmd_suffix}"
