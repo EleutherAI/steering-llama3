@@ -3,7 +3,7 @@ from tqdm import tqdm
 
 from transformers import AutoTokenizer
 
-from refusal_test_open_ended import eval_prompt, EVAL_MODEL
+from steering.refusal_test_open_ended import eval_prompt, EVAL_MODEL
 
 if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(EVAL_MODEL)

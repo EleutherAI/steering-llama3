@@ -10,17 +10,21 @@ import shlex
 from common import Settings, parse_settings_args
 from utils import force_save
 from refusal_test_open_ended import eval_prompt, EVAL_MODEL
+from caa_test_open_ended import eval_prompt as caa_eval_prompt
 
 
-def evaluate(settings, mults, port):
+def evaluate(settings, mults, port, eval_type):
     tokenizer = AutoTokenizer.from_pretrained(EVAL_MODEL)
+
+    score_field = "scores" if eval_type == "harm" else "num_scores"
+    eval_prompt_fn = eval_prompt if eval_type == "harm" else lambda q, r, t, url: caa_eval_prompt(settings.behavior, q, r, t, url)
 
     for mult in mults:
         print(f"Evaluating steering by {mult}...")
         with open(settings.response_path(mult)) as f:
             prompts = json.load(f)
 
-        if "scores" in prompts[0]:
+        if score_field in prompts[0]:
             print("Already evaluated. Skipping...")
             continue
 
@@ -28,9 +32,9 @@ def evaluate(settings, mults, port):
             scores = []
             for response in prompt["responses"]:
                 question = prompt["prompt"]
-                score = eval_prompt(question, response, tokenizer, url=f"http://127.0.0.1:{port}/generate")
+                score = eval_prompt_fn(question, response, tokenizer, url=f"http://127.0.0.1:{port}/generate")
                 scores.append(score)
-            prompt["scores"] = scores
+            prompt[score_field] = scores
 
         force_save(
             prompts,
@@ -42,6 +46,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
 
     parser.add_argument("--mults", type=float, nargs="+", required=True)
+    parser.add_argument("--eval", type=str, default="harm", choices=["harm", "num"])
 
     parser.add_argument("--port", type=int, default=8005)
     parser.add_argument("--server", action="store_true")
@@ -57,7 +62,7 @@ if __name__ == "__main__":
         print(f"Server started on port {args.port}. Waiting {args.wait} sec for it to be ready...")
         sleep(args.wait)
     try:
-        evaluate(settings, args.mults, args.port)
+        evaluate(settings, args.mults, args.port, args.eval)
         print("Done!")
     finally:
         if args.server:

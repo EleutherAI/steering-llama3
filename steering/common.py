@@ -3,6 +3,8 @@ from typing import Optional, Union
 
 from utils import cached_property
 
+from caa_test_open_ended import ALL_BEHAVIORS
+
 
 def parts_to_suffix(parts):
     return "_".join(f"{k}{v}" for k, v in parts.items() if v is not None)
@@ -18,6 +20,7 @@ def parts_to_settings(parts):
     keymap = {
         'M': 'model',
         'D': 'dataset',
+        'B': 'behavior',
         'L': 'layer',
         'T': 'temp',
         'C': 'leace',
@@ -52,6 +55,7 @@ class Settings:
     residual: bool = False
     logit: bool = False
     toks: Optional[str] = None
+    behavior: str = "refusal"
 
     @cached_property
     def model_id(self):
@@ -64,6 +68,7 @@ class Settings:
         return {
             'M': self.model,
             'D': self.dataset,
+            'B': None if self.behavior == "refusal" else self.behavior,
             'R': 'res' if self.residual else None,
             'G': 'log' if self.logit else None,
             'L': self.layer if layer is None else layer,
@@ -110,6 +115,7 @@ def parse_settings_args(parser, generate=False):
     parser.add_argument("--dataset", type=str, choices=["prompts", "caa", "ab", "opencon", "openr", "abcon"], default="prompts")
     parser.add_argument("--residual", action="store_true")
     parser.add_argument("--logit", action="store_true")
+    parser.add_argument("--behavior", type=str, default="refusal", choices=ALL_BEHAVIORS)
 
     if not generate:
         parser.add_argument("--layer", type=lambda x: int(x) if x != "all" else x, default=15)

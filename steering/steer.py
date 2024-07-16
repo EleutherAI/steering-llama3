@@ -14,6 +14,7 @@ from concept_erasure import LeaceEraser, QuadraticEditor, QuadraticFitter
 from common import Settings, parse_settings_args
 from refusal_test_open_ended import get_harmful_test_prompts, get_harmless_test_prompts
 from utils import get_layer_list, force_save, cached_property, get_residual_layer_list
+from generate_vectors import DATASET_ROOT
 
 
 @dataclass
@@ -95,6 +96,14 @@ def load_steerer(settings: Settings, layer: int):
     return steerer
 
 def get_prompts(settings: Settings, num):
+    if settings.dataset in ["ab", "openr"]:
+        with open(DATASET_ROOT + f"CAA/test/{settings.behavior}/test_dataset_open_ended.json") as f:
+            questions = json.load(f)
+        
+        prompts = [{"prompt": q["question"]} for q in questions]
+
+        return prompts[:num]
+
     harmful_prompts = get_harmful_test_prompts(num)
     harmless_prompts = get_harmless_test_prompts(num)
     

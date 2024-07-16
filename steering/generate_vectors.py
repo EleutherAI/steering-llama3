@@ -137,11 +137,13 @@ def get_prompts_harm(
 def get_prompts_rimsky(
     settings: Settings,
 ):
+    behavior = settings.behavior
+
     if settings.dataset == 'ab':
-        with open(DATASET_ROOT+'CAA/generate/refusal/generate_dataset.json') as f:
+        with open(DATASET_ROOT+f'CAA/generate/{behavior}/generate_dataset.json') as f:
             data = json.load(f)
     elif settings.dataset == 'openr':
-        with open(DATASET_ROOT+'CAA/generate/refusal/generate_openresponse_dataset.json') as f:
+        with open(DATASET_ROOT+f'CAA/generate/{behavior}/generate_openresponse_dataset.json') as f:
             data = json.load(f)
 
     positives = []
