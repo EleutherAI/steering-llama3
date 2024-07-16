@@ -130,12 +130,14 @@ def parse_settings_args(parser, generate=False):
             dataset=args.dataset, 
             residual=args.residual,
             logit=args.logit,
+            behavior=args.behavior,
         )
     else:
         settings = Settings(
             dataset=args.dataset, 
             residual=args.residual,
             logit=args.logit,
+            behavior=args.behavior,
             layer=args.layer, 
             temp=args.temp,
             leace=args.leace,
