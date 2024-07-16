@@ -23,7 +23,9 @@ def plot(settings, mults, verbose=False):
             with open(settings.response_path(mult)) as f:
                 prompts = json.load(f)
 
-            prompt_scores = [np.mean(prompt["scores"]) for prompt in prompts if prompt["label"] == label]
+            score_field = "scores" if "scores" in prompts[0] else "num_scores"
+
+            prompt_scores = [np.mean(prompt[score_field]) for prompt in prompts if "label" not in prompt or prompt["label"] == label]
             mean = np.mean(prompt_scores)
             q25 = np.percentile(prompt_scores, 25)
             q75 = np.percentile(prompt_scores, 75)
@@ -58,7 +60,7 @@ def plot_all():
         # open to check for scores
         with open(f"artifacts/responses/{filename}") as f:
             prompts = json.load(f)
-        if not prompts or "scores" not in prompts[0]:
+        if not prompts or ("scores" not in prompts[0] and "num_scores" not in prompts[0]):
             continue
 
         settings, notkwargs = parts_to_settings(suffix_to_parts(suffix))

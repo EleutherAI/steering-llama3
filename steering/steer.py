@@ -96,7 +96,7 @@ def load_steerer(settings: Settings, layer: int):
     return steerer
 
 def get_prompts(settings: Settings, num):
-    if settings.dataset in ["ab", "openr"]:
+    if settings.behavior is not None:
         with open(DATASET_ROOT + f"CAA/test/{settings.behavior}/test_dataset_open_ended.json") as f:
             questions = json.load(f)
         
@@ -127,6 +127,7 @@ def steer(
     mults: list[float], 
     repeats: int = 20,
     num_prompts: int = 25,
+    overwrite: bool = False,
     ):
     token = os.getenv("HF_TOKEN")
     tokenizer = AutoTokenizer.from_pretrained(settings.model_id, token=token)
@@ -151,7 +152,7 @@ def steer(
     for mult in mults:
         print(f"Steering activations by {mult}")
 
-        if os.path.exists(settings.response_path(mult)):
+        if os.path.exists(settings.response_path(mult)) and not overwrite:
             print(f"Responses already saved to {settings.response_path(mult)}. Skipping...")
             continue
         
@@ -216,10 +217,12 @@ if __name__ == "__main__":
     parser = ArgumentParser()
 
     parser.add_argument("--mults", type=float, nargs="+", required=True)
+    
+    parser.add_argument("--overwrite", action="store_true")
 
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--prompts", type=int, default=25)
 
     args, settings = parse_settings_args(parser)
 
-    steer(settings, args.mults, repeats=args.repeats, num_prompts=args.prompts)
+    steer(settings, args.mults, repeats=args.repeats, num_prompts=args.prompts, overwrite=args.overwrite)

@@ -13,18 +13,18 @@ from refusal_test_open_ended import eval_prompt, EVAL_MODEL
 from caa_test_open_ended import eval_prompt as caa_eval_prompt
 
 
-def evaluate(settings, mults, port, eval_type):
+def evaluate(settings, mults, port, overwrite):
     tokenizer = AutoTokenizer.from_pretrained(EVAL_MODEL)
 
-    score_field = "scores" if eval_type == "harm" else "num_scores"
-    eval_prompt_fn = eval_prompt if eval_type == "harm" else lambda q, r, t, url: caa_eval_prompt(settings.behavior, q, r, t, url)
+    score_field = "scores" if settings.behavior is None else "num_scores"
+    eval_prompt_fn = eval_prompt if settings.behavior is None else lambda q, r, t, url: caa_eval_prompt(settings.behavior, q, r, t, url)
 
     for mult in mults:
         print(f"Evaluating steering by {mult}...")
         with open(settings.response_path(mult)) as f:
             prompts = json.load(f)
 
-        if score_field in prompts[0]:
+        if score_field in prompts[0] and not overwrite:
             print("Already evaluated. Skipping...")
             continue
 
@@ -46,11 +46,12 @@ if __name__ == "__main__":
     parser = ArgumentParser()
 
     parser.add_argument("--mults", type=float, nargs="+", required=True)
-    parser.add_argument("--eval", type=str, default="harm", choices=["harm", "num"])
 
     parser.add_argument("--port", type=int, default=8005)
     parser.add_argument("--server", action="store_true")
     parser.add_argument("--wait", type=int, default=150)
+
+    parser.add_argument("--overwrite", action="store_true")
 
     args, settings = parse_settings_args(parser)
 
@@ -62,7 +63,7 @@ if __name__ == "__main__":
         print(f"Server started on port {args.port}. Waiting {args.wait} sec for it to be ready...")
         sleep(args.wait)
     try:
-        evaluate(settings, args.mults, args.port, args.eval)
+        evaluate(settings, args.mults, args.port, args.overwrite)
         print("Done!")
     finally:
         if args.server:
