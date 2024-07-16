@@ -28,7 +28,10 @@ for dataset in ["ab"]:
             dependencies[f"gen_{dataset}_{behavior}_{layer}"] = []
 
             for leace in [None, "orth"]:
-                steer_suffix = f"{cmd_suffix} --layer {layer} --mults -2 -1 -.5 -.2 -.1 0 .1 .2 .5 1 2 --overwrite"
+                steer_suffix = f"{cmd_suffix} --layer {layer} --mults -2 -1 -.5 -.2 -.1 0 .1 .2 .5 1 2"
+                # NB: overwrite was originally unconditional
+                if behavior is None:
+                    steer_suffix += " --overwrite"
                 if leace is not None:
                     steer_suffix += f" --leace {leace}"
                 cmd = f"python steering/steer.py {steer_suffix}"
