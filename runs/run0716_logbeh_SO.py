@@ -17,7 +17,7 @@ port = 8000
 for dataset in ["openr"]:
     for behavior in ALL_BEHAVIORS + [None]:
         for layer in ["all", 15]:
-            for logit in [False, True]:
+            for logit in [False]:
                 cmd_suffix = f"--dataset {dataset}"
                 if behavior is not None:
                     cmd_suffix += f" --behavior {behavior}"
@@ -32,7 +32,7 @@ for dataset in ["openr"]:
                 commands[f"gen_{job_suffix}"] = cmd
                 dependencies[f"gen_{job_suffix}"] = []
 
-                for leace in [None, "orth"]:
+                for leace in [None, "orth", "leace"]:
                     if logit and leace is not None:
                         continue
                     steer_suffix = f"{cmd_suffix} --layer {layer} --mults -2 -1 -.5 -.2 -.1 0 .1 .2 .5 1 2"
