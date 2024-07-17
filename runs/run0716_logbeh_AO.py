@@ -27,8 +27,10 @@ for dataset in ["ab"]:
                     cmd_suffix += " --logit"
                 cmd = f"python steering/generate_vectors.py {cmd_suffix}"
 
-                commands[f"gen_{dataset}_{behavior}_{layer}"] = cmd
-                dependencies[f"gen_{dataset}_{behavior}_{layer}"] = []
+                job_suffix = f"{dataset}_{behavior}_{layer}_{logit}"
+
+                commands[f"gen_{job_suffix}"] = cmd
+                dependencies[f"gen_{job_suffix}"] = []
 
                 for leace in [None, "orth"]:
                     if logit and leace is not None:
@@ -40,12 +42,12 @@ for dataset in ["ab"]:
                     if leace is not None:
                         steer_suffix += f" --leace {leace}"
                     cmd = f"python steering/steer.py {steer_suffix}"
-                    commands[f"steer_{dataset}_{behavior}_{layer}_{leace}"] = cmd
-                    dependencies[f"steer_{dataset}_{behavior}_{layer}_{leace}"] = [f"gen_{dataset}_{behavior}_{layer}"]
+                    commands[f"steer_{job_suffix}_{leace}"] = cmd
+                    dependencies[f"steer_{job_suffix}_{leace}"] = [f"gen_{job_suffix}"]
 
                     cmd = f"python steering/eval.py {steer_suffix} --port {port} --server"
                     commands[f"eval_{dataset}_{behavior}_{layer}_{leace}"] = cmd
-                    dependencies[f"eval_{dataset}_{behavior}_{layer}_{leace}"] = [f"steer_{dataset}_{behavior}_{layer}_{leace}"]
+                    dependencies[f"eval_{job_suffix}_{leace}"] = [f"steer_{job_suffix}_{leace}"]
                     port += 1
 
 for job in commands:
