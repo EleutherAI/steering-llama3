@@ -14,7 +14,7 @@ port = 8000
 # starts = list(np.round(np.arange(-0.2, 0.21, .04), 3))[7:]
 
 
-for dataset in ["ab"]:
+for dataset in ["openr"]:
     for behavior in ALL_BEHAVIORS + [None]:
         for layer in ["all", 15]:
             for logit in [False, True]:
