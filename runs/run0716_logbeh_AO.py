@@ -46,7 +46,7 @@ for dataset in ["ab"]:
                     dependencies[f"steer_{job_suffix}_{leace}"] = [f"gen_{job_suffix}"]
 
                     cmd = f"python steering/eval.py {steer_suffix} --port {port} --server"
-                    commands[f"eval_{dataset}_{behavior}_{layer}_{leace}"] = cmd
+                    commands[f"eval_{job_suffix}_{leace}"] = cmd
                     dependencies[f"eval_{job_suffix}_{leace}"] = [f"steer_{job_suffix}_{leace}"]
                     port += 1
 
