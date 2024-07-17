@@ -16,6 +16,8 @@ from refusal_test_open_ended import get_harmful_test_prompts, get_harmless_test_
 from utils import get_layer_list, force_save, cached_property, get_residual_layer_list
 from generate_vectors import DATASET_ROOT
 
+from torch.profiler import profile, record_function, ProfilerActivity
+
 
 @dataclass
 class ActivationSteerer:
@@ -24,11 +26,15 @@ class ActivationSteerer:
     eraser: Optional[Union[LeaceEraser, QuadraticEditor]] = None
     start: Optional[int] = None
     end: Optional[int] = None
+    trivial: bool = False
 
     def steer_activations(self, multiplier: float):
-        u = self.vector
+        if self.trivial:
+            return lambda model, input, output: output
 
-        if settings.leace == "quad":
+        u = multiplier * self.vector.cuda()
+
+        if self.settings.leace == "quad":
             target = 2 if multiplier == 0 else int(multiplier > 0)
 
             def hook(model, input, output):
@@ -37,19 +43,30 @@ class ActivationSteerer:
 
             return hook
 
-        def hook(model, input, output):
-            u_ = u.to(output[0].device)
-
-            if self.eraser is not None:
+        if self.eraser is not None:
+            def hook(model, input, output):
                 output[0][..., self.start:self.end, :] = self.eraser(output[0][..., self.start:self.end, :].to(torch.float64)).to(output[0].dtype)
+                output[0][..., self.start:self.end, :] += u
+                return output
 
-            output[0][..., self.start:self.end, :] += multiplier * u_
+            return hook
+
+        start, end = self.start, self.end
+
+        # print("u", u.device, u.dtype, u.shape)
+
+        def hook(model, input, output):
+            # with record_function("steer_hook"):
+            # with record_function("steer"):
+            # print(type(model.mlp), type(model.self_attn))
+            # print("output", output[0].device, output[0].dtype, output[0].shape)
+            output[0][..., start:end, :] += u
             return output
             
         return hook
 
 
-def load_steerer(settings: Settings, layer: int):
+def load_steerer(settings: Settings, layer: int, trivial: bool = False):
     path = settings.vec_path(layer)
     vec = torch.load(path).cpu()
 
@@ -70,7 +87,7 @@ def load_steerer(settings: Settings, layer: int):
         editor = fitter.editor()
         print("Editor fitted!")
 
-        steerer = ActivationSteerer(vec, settings, editor)
+        steerer = ActivationSteerer(vec, settings, editor, trivial=trivial)
 
     elif settings.leace:
         if settings.logit:
@@ -89,9 +106,9 @@ def load_steerer(settings: Settings, layer: int):
             eraser = LeaceEraser.fit(x, z, method=settings.leace)
             print("Eraser fitted!")
 
-        steerer = ActivationSteerer(vec, settings, eraser)
+        steerer = ActivationSteerer(vec, settings, eraser, trivial=trivial)
     else:
-        steerer = ActivationSteerer(vec, settings)
+        steerer = ActivationSteerer(vec, settings, trivial=trivial)
 
     return steerer
 
@@ -128,6 +145,8 @@ def steer(
     repeats: int = 20,
     num_prompts: int = 25,
     overwrite: bool = False,
+    trivial: bool = False,
+    bias: bool = False,
     ):
     token = os.getenv("HF_TOKEN")
     tokenizer = AutoTokenizer.from_pretrained(settings.model_id, token=token)
@@ -145,9 +164,14 @@ def steer(
     layer_list = get_residual_layer_list(model) if settings.residual else get_layer_list(model)
 
     if layer == "all":
-        steerers = {i: load_steerer(settings, i) for i in range(len(layer_list))}
+        steerers = {i: load_steerer(settings, i, trivial) for i in range(len(layer_list))}
     else:
-        steerers = {layer: load_steerer(settings, layer)}
+        steerers = {layer: load_steerer(settings, layer, trivial)}
+
+    if bias:
+        # for i in steerers.keys():
+        #     print(i, layer_list[i].mlp.down_proj.bias, layer_list[i].mlp.config.mlp_bias)
+        orig_biases = {i: layer_list[i].mlp.down_proj.bias.data.clone() for i in steerers.keys()}
 
     for mult in mults:
         print(f"Steering activations by {mult}")
@@ -156,10 +180,17 @@ def steer(
             print(f"Responses already saved to {settings.response_path(mult)}. Skipping...")
             continue
         
-        handles = {
-            i: layer_list[i].register_forward_hook(steerer.steer_activations(mult))
-            for i, steerer in steerers.items()
-        }
+        if bias:
+            assert not settings.residual
+
+            for i, steerer in steerers.items():
+                layer_list[i].mlp.down_proj.bias.data = orig_biases[i] + mult * steerer.vector
+
+        else:
+            handles = {
+                i: layer_list[i].register_forward_hook(steerer.steer_activations(mult))
+                for i, steerer in steerers.items()
+            }
 
         with torch.no_grad():
             for prompt in tqdm(prompts):
@@ -186,6 +217,7 @@ def steer(
                             steerer.start = input_ids.shape[-1] - 1
                             steerer.end = None
 
+                    # with record_function("model_generate"):
                     outputs = model.generate(
                         input_ids,
                         max_new_tokens=50,
@@ -201,8 +233,9 @@ def steer(
                 
                 prompt["responses"] = responses
 
-        for handle in handles.values():
-            handle.remove()
+        if not bias:
+            for handle in handles.values():
+                handle.remove()
 
         force_save(
             prompts,
@@ -223,6 +256,17 @@ if __name__ == "__main__":
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--prompts", type=int, default=25)
 
+    parser.add_argument("--trivial", action="store_true")
+    parser.add_argument("--bias", action="store_true")
+
     args, settings = parse_settings_args(parser)
 
-    steer(settings, args.mults, repeats=args.repeats, num_prompts=args.prompts, overwrite=args.overwrite)
+    steer(
+        settings, 
+        args.mults, 
+        repeats=args.repeats, 
+        num_prompts=args.prompts, 
+        overwrite=args.overwrite,
+        trivial=args.trivial,
+        bias=args.bias,
+    )
