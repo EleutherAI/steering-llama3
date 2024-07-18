@@ -168,10 +168,10 @@ def steer(
     else:
         steerers = {layer: load_steerer(settings, layer, trivial)}
 
-    if bias:
-        # for i in steerers.keys():
-        #     print(i, layer_list[i].mlp.down_proj.bias, layer_list[i].mlp.config.mlp_bias)
-        orig_biases = {i: layer_list[i].mlp.down_proj.bias.data.clone() for i in steerers.keys()}
+    # if bias:
+    #     # for i in steerers.keys():
+    #     #     print(i, layer_list[i].mlp.down_proj.bias, layer_list[i].mlp.config.mlp_bias)
+    #     orig_biases = {i: layer_list[i].mlp.down_proj.bias.data.clone() for i in steerers.keys()}
 
     for mult in mults:
         print(f"Steering activations by {mult}")
@@ -181,11 +181,14 @@ def steer(
             continue
         
         if bias:
-            assert not settings.residual
+            assert settings.leace is None
+            assert settings.toks is None
+
+            if settings.residual:
+                raise NotImplementedError("Bias steering not implemented for residual layers")
 
             for i, steerer in steerers.items():
-                layer_list[i].mlp.down_proj.bias.data = orig_biases[i] + mult * steerer.vector
-
+                layer_list[i].mlp.down_proj.bias = torch.nn.Parameter(mult * steerer.vector.cuda())
         else:
             handles = {
                 i: layer_list[i].register_forward_hook(steerer.steer_activations(mult))

@@ -12,10 +12,11 @@ from common import Settings, parse_settings_args, suffix_to_parts, parts_to_sett
 def plot(settings, mults, verbose=False):
     plt.figure()
 
-    for label in ["harmful", "harmless"]:
+    for label in ["harmful", "harmless", None]:
         means = []
         q25s = []
         q75s = []
+        good_mults = []
 
         for mult in mults:
             if verbose:
@@ -25,7 +26,14 @@ def plot(settings, mults, verbose=False):
 
             score_field = "scores" if "scores" in prompts[0] else "num_scores"
 
-            prompt_scores = [np.mean(prompt[score_field]) for prompt in prompts if "label" not in prompt or prompt["label"] == label]
+            for prompt in prompts:
+                if "label" not in prompt:
+                    prompt["label"] = None
+
+            if not any (prompt["label"] == label for prompt in prompts):
+                continue
+
+            prompt_scores = [np.mean(prompt[score_field]) for prompt in prompts if prompt["label"] == label]
             mean = np.mean(prompt_scores)
             q25 = np.percentile(prompt_scores, 25)
             q75 = np.percentile(prompt_scores, 75)
@@ -33,13 +41,21 @@ def plot(settings, mults, verbose=False):
             means.append(mean)
             q25s.append(q25)
             q75s.append(q75)
+            good_mults.append(mult)
 
         # old version: error bars
         # plt.errorbar(mults, means, yerr=stds, label=label)
 
         # new version: shaded region
-        plt.plot(mults, means, label=label)
-        plt.fill_between(mults, q25s, q75s, alpha=0.3)
+        plt.plot(good_mults, means, label=label)
+        plt.fill_between(good_mults, q25s, q75s, alpha=0.3)
+
+    # xlim special cases:
+    if settings.dataset == "prompts":
+        if settings.residual:
+            plt.xlim(-1.5, 1)
+        elif settings.layer == "all":
+            plt.xlim(-.25, .2)
     plt.grid()
     plt.xlabel("Steering multiplier")
     plt.ylabel("Mean score")

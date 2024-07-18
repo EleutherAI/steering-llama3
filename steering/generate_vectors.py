@@ -3,6 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 import json
 import argparse
+import os
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -137,7 +138,7 @@ def get_prompts_harm(
 def get_prompts_rimsky(
     settings: Settings,
 ):
-    behavior = settings.behavior
+    behavior = settings.behavior if settings.behavior is not None else "refusal"
 
     if settings.dataset == 'ab':
         with open(DATASET_ROOT+f'CAA/generate/{behavior}/generate_dataset.json') as f:
@@ -189,6 +190,7 @@ def tokenize(messages, tokenizer):
 
 def generate_vectors(
     settings: Settings,
+    overwrite: bool = False,
 ):
     # load model
     tokenizer = AutoTokenizer.from_pretrained(settings.model_id)
@@ -202,6 +204,18 @@ def generate_vectors(
     positives, negatives = get_prompts(settings)
 
     layer_list = get_residual_layer_list(model) if settings.residual else get_layer_list(model)
+
+    # check for settings.vec_path(layer=layer)
+
+    if not overwrite:
+        for layer in layer_list:
+            if not os.path.exists(settings.vec_path(layer=layer)):
+                overwrite = True
+                break
+    
+    if not overwrite:
+        print("Vectors already saved. Skipping...")
+        return
 
     adders = {mod: ActivationSaver() for mod in layer_list}
 
@@ -221,7 +235,12 @@ def generate_vectors(
             
             if settings.logit:
                 last_tok = input_ids[:, -1]
-                assert last_tok == A_TOKEN or last_tok == B_TOKEN
+                if last_tok not in [A_TOKEN, B_TOKEN]:
+                    if settings.behavior == "survival-instinct":
+                        # known issue with this dataset, skip
+                        continue
+                    else:
+                        raise ValueError(f"Last token is not A or B: {p}")
                 match_tok, nonmatch_tok = (A_TOKEN, B_TOKEN) if last_tok == A_TOKEN else (B_TOKEN, A_TOKEN)
 
                 output = model(input_ids[:, :-1])
@@ -283,6 +302,7 @@ def generate_vectors(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--overwrite", action="store_true")
     
     args, settings = parse_settings_args(parser, generate=True)
-    generate_vectors(settings)
+    generate_vectors(settings, args.overwrite)
