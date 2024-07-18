@@ -24,9 +24,15 @@ def run_on_gpu(gpu: int, cmd: str):
         subprocess.run(command, shell=True, check=True)
     except Exception as e:
         print()
+        for _ in range(3):
+            print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print()
         print(f"[WARN] Error on GPU {gpu}: {cmd}")
         print(e)
         print()
+        # append to log file
+        with open(f"logs/gpu_graph.err", "a") as f:
+            f.write(f"[{datetime.now()}]\n{gpu}\n{cmd}\n{e}\n\n")
     else:
         print(f"Finished on GPU {gpu}: {cmd}")
     finally:
@@ -68,6 +74,7 @@ def launch_available(ctx: Context):
             elif avail_jobs:
                 print("[WARN] No free GPUs -- this should not happen! :(")
                 print(ctx)
+                raise Exception("No free GPUs")
             else:
                 print("Blocked on dependencies :|")
             print(f"Running: {[j for j in ctx.claimed if j not in ctx.completed]}")
