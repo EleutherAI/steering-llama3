@@ -71,6 +71,10 @@ class ActivationSteerer:
             def hook(model, input, output):
                 output[0][..., self.start:self.end, :] = self.eraser(output[0][..., self.start:self.end, :].to(torch.float64)).to(output[0].dtype)
                 output[0][..., self.start:self.end, :] += u
+                if TEST:
+                    print(self.eraser.proj_left.shape, u.shape)
+                    print(u.to(torch.float64) @ self.eraser.proj_left.to(torch.float64) / u.norm() / self.eraser.proj_left.norm())
+                    print(u.norm(), self.eraser.proj_left.norm())
                 return output
 
             return hook
@@ -313,8 +317,11 @@ if __name__ == "__main__":
 
     parser.add_argument("--trivial", action="store_true")
     parser.add_argument("--bias", action="store_true")
+    parser.add_argument("--test", action="store_true")
 
     args, settings = parse_settings_args(parser)
+
+    TEST = args.test
 
     steer(
         settings, 
