@@ -24,6 +24,8 @@ class ActivationSteerer:
     vector: torch.Tensor
     settings: Settings
     eraser: Optional[Union[LeaceEraser, QuadraticEditor]] = None
+    threshold: Optional[float] = None
+    class_vector: Optional[torch.Tensor] = None
     start: Optional[int] = None
     end: Optional[int] = None
     trivial: bool = False
@@ -38,7 +40,29 @@ class ActivationSteerer:
             target = 2 if multiplier == 0 else int(multiplier > 0)
 
             def hook(model, input, output):
-                output[0][..., self.start:self.end, :] = self.eraser.transport(output[0][..., self.start:self.end, :].to(torch.float64), 2, target).to(output[0].dtype)
+                output[0][..., self.start:self.end, :] = self.eraser.transport(
+                    output[0][..., self.start:self.end, :].to(torch.float64), 
+                    2, 
+                    target
+                ).to(output[0].dtype)
+                return output
+
+            return hook
+
+        if self.settings.leace == "quadlda":
+            if multiplier == 0:
+                return lambda model, input, output: output
+
+            # get source classes with class_vector and threshold
+            sources = (output[0] @ self.class_vector > self.threshold).to(int)
+            target = int(multiplier > 0)
+
+            def hook(model, input, output):
+                output[0][..., self.start:self.end, :] = self.eraser(
+                    output[0][..., self.start:self.end, :].to(torch.float64), 
+                    sources, 
+                    target
+                ).to(output[0].dtype)
                 return output
 
             return hook
@@ -51,8 +75,6 @@ class ActivationSteerer:
 
             return hook
 
-        start, end = self.start, self.end
-
         # print("u", u.device, u.dtype, u.shape)
 
         def hook(model, input, output):
@@ -60,7 +82,7 @@ class ActivationSteerer:
             # with record_function("steer"):
             # print(type(model.mlp), type(model.self_attn))
             # print("output", output[0].device, output[0].dtype, output[0].shape)
-            output[0][..., start:end, :] += u
+            output[0][..., self.start:self.end, :] += u
             return output
             
         return hook
@@ -88,6 +110,36 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
         print("Editor fitted!")
 
         steerer = ActivationSteerer(vec, settings, editor, trivial=trivial)
+
+    if settings.leace == "quadlda":
+        print("Fitting LEACE eraser for LDA vector...")
+        # [N, 1, D] -> [N, D]
+        pos = torch.load(settings.acts_path(positive=True, layer=layer)).cuda().squeeze(1)
+        neg = torch.load(settings.acts_path(positive=False, layer=layer)).cuda().squeeze(1)
+        # [2N, D]
+        x = torch.cat([pos, neg]).to(torch.float64)
+        z = torch.cat([torch.ones(len(pos)), torch.zeros(len(neg))]).cuda().to(torch.float64)
+
+        eraser = LeaceEraser.fit(x, z, method=settings.leace)
+        print("Eraser fitted!")
+
+        lda = eraser.proj_right.squeeze(0)
+        act_mean = x.mean(dim=0)
+        threshold = torch.dot(lda, act_mean)
+
+        print("Fitting QLEACE editor...")
+        # [N, 1, D] -> [N, D]
+        pos = torch.load(settings.acts_path(positive=True, layer=layer)).cuda().squeeze(1).to(torch.float64)
+        neg = torch.load(settings.acts_path(positive=False, layer=layer)).cuda().squeeze(1).to(torch.float64)
+
+        fitter = QuadraticFitter(pos.shape[-1], 2, dtype=torch.float64, device=pos.device)
+        fitter.update_single(pos, 1)
+        fitter.update_single(neg, 0)
+
+        editor = fitter.editor()
+        print("Editor fitted!")
+
+        steerer = ActivationSteerer(vec, settings, editor, threshold, lda, trivial=trivial)
 
     elif settings.leace:
         if settings.logit:
