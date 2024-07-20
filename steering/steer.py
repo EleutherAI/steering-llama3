@@ -15,6 +15,7 @@ from common import Settings, parse_settings_args
 from refusal_test_open_ended import get_harmful_test_prompts, get_harmless_test_prompts
 from utils import get_layer_list, force_save, cached_property, get_residual_layer_list
 from generate_vectors import DATASET_ROOT
+from scrub import get_scrubber, CAAScrubber, mangle_module_path
 
 from torch.profiler import profile, record_function, ProfilerActivity
 
@@ -34,7 +35,10 @@ class ActivationSteerer:
         if self.trivial:
             return lambda model, input, output: output
 
-        u = multiplier * self.vector.cuda()
+        if self.settings.scrub:
+            u = self.vector.cuda()
+        else:
+            u = multiplier * self.vector.cuda()
 
         if self.settings.leace == "quad":
             target = 2 if multiplier == 0 else int(multiplier > 0)
@@ -68,13 +72,14 @@ class ActivationSteerer:
             return hook
 
         if self.eraser is not None:
+            etype = self.eraser.proj_left.dtype
             def hook(model, input, output):
-                output[0][..., self.start:self.end, :] = self.eraser(output[0][..., self.start:self.end, :].to(torch.float64)).to(output[0].dtype)
+                output[0][..., self.start:self.end, :] = self.eraser(output[0][..., self.start:self.end, :].to(etype)).to(output[0].dtype)
                 output[0][..., self.start:self.end, :] += u
-                if TEST:
-                    print(self.eraser.proj_left.shape, u.shape)
-                    print(u.to(torch.float64) @ self.eraser.proj_left.to(torch.float64) / u.norm() / self.eraser.proj_left.norm())
-                    print(u.norm(), self.eraser.proj_left.norm())
+                # if TEST:
+                #     print(self.eraser.proj_left.shape, u.shape)
+                #     print(u.to(torch.float64) @ self.eraser.proj_left.to(torch.float64) / u.norm() / self.eraser.proj_left.norm())
+                #     print(u.norm(), self.eraser.proj_left.norm())
                 return output
 
             return hook
@@ -90,6 +95,26 @@ class ActivationSteerer:
             return output
             
         return hook
+
+
+def load_scrub_steerers(settings: Settings, model, layer_list, mult):
+    scrubber = get_scrubber(model, settings, mult)
+
+    layer_names = {}
+    for name, mod in model.named_modules():
+        if mod in layer_list:
+            layer_names[mod] = mangle_module_path(name).split('model-')[1]
+
+    steerers = {}
+    for i, layer in enumerate(layer_list):
+        steerer = ActivationSteerer(
+            scrubber.vectors[layer_names[layer]],
+            settings,
+            eraser=scrubber.erasers[layer_names[layer]],
+        )
+        steerers[i] = steerer
+
+    return steerers
 
 
 def load_steerer(settings: Settings, layer: int, trivial: bool = False):
@@ -113,7 +138,7 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
         editor = fitter.editor()
         print("Editor fitted!")
 
-        steerer = ActivationSteerer(vec, settings, editor, trivial=trivial)
+        return ActivationSteerer(vec, settings, editor, trivial=trivial)
 
     if settings.leace == "quadlda":
         print("Fitting LEACE eraser for LDA vector...")
@@ -143,9 +168,9 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
         editor = fitter.editor()
         print("Editor fitted!")
 
-        steerer = ActivationSteerer(vec, settings, editor, threshold, lda, trivial=trivial)
+        return ActivationSteerer(vec, settings, editor, threshold, lda, trivial=trivial)
 
-    elif settings.leace:
+    if settings.leace:
         if settings.logit:
             print("Loading logit eraser...")
             eraser = torch.load(settings.eraser_path(layer))
@@ -162,11 +187,10 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
             eraser = LeaceEraser.fit(x, z, method=settings.leace)
             print("Eraser fitted!")
 
-        steerer = ActivationSteerer(vec, settings, eraser, trivial=trivial)
-    else:
-        steerer = ActivationSteerer(vec, settings, trivial=trivial)
+        return ActivationSteerer(vec, settings, eraser, trivial=trivial)
 
-    return steerer
+    return ActivationSteerer(vec, settings, trivial=trivial)
+
 
 def get_prompts(settings: Settings, num):
     if settings.behavior is not None:
@@ -219,7 +243,9 @@ def steer(
 
     layer_list = get_residual_layer_list(model) if settings.residual else get_layer_list(model)
 
-    if layer == "all":
+    if settings.scrub:
+        pass
+    elif layer == "all":
         steerers = {i: load_steerer(settings, i, trivial) for i in range(len(layer_list))}
     else:
         steerers = {layer: load_steerer(settings, layer, trivial)}
@@ -235,13 +261,16 @@ def steer(
         if os.path.exists(settings.response_path(mult)) and not overwrite:
             print(f"Responses already saved to {settings.response_path(mult)}. Skipping...")
             continue
+
+        if settings.scrub:
+            steerers = load_scrub_steerers(settings, model, layer_list, mult)
         
         if bias:
             assert settings.leace is None
             assert settings.toks is None
 
             if settings.residual:
-                raise NotImplementedError("Bias steering not implemented for residual layers")
+                raise NotImplementedError("Bias mode not implemented for residual layers")
 
             for i, steerer in steerers.items():
                 layer_list[i].mlp.down_proj.bias = torch.nn.Parameter(mult * steerer.vector.cuda())

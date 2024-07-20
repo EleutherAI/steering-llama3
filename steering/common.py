@@ -29,6 +29,7 @@ def parts_to_settings(parts):
         'G': 'logit',
         'X': 'mult',
         'P': 'positive',
+        'S': 'scrub',
     }
     valmap = {
         'L': lambda x: int(x) if x != "all" else x,
@@ -37,6 +38,7 @@ def parts_to_settings(parts):
         'P': lambda x: x == "+",
         'R': lambda x: x == "res",
         'G': lambda x: x == "log",
+        'S': lambda x: x == "scrub",
     }
     both = {keymap[k]: valmap.get(k, str)(v) for k, v in parts.items()}
     skip = {'mult', 'positive'}
@@ -56,6 +58,7 @@ class Settings:
     logit: bool = False
     toks: Optional[str] = None
     behavior: Optional[str] = None
+    scrub: bool = False
 
     @cached_property
     def model_id(self):
@@ -72,6 +75,7 @@ class Settings:
             'R': 'res' if self.residual else None,
             'G': 'log' if self.logit else None,
             'L': self.layer if layer is None else layer,
+            'S': 'scrub' if self.scrub else None,
         }
 
     def response_parts(self):
@@ -116,6 +120,8 @@ def parse_settings_args(parser, generate=False):
     parser.add_argument("--residual", action="store_true")
     parser.add_argument("--logit", action="store_true")
     parser.add_argument("--behavior", type=str, default=None, choices=ALL_BEHAVIORS)
+    parser.add_argument("--model", type=str, default="llama3")
+    parser.add_argument("--scrub", action="store_true")
 
     if not generate:
         parser.add_argument("--layer", type=lambda x: int(x) if x != "all" else x, default=15)
@@ -127,17 +133,21 @@ def parse_settings_args(parser, generate=False):
 
     if generate:
         settings = Settings(
+            model=args.model,
             dataset=args.dataset, 
             residual=args.residual,
             logit=args.logit,
             behavior=args.behavior,
+            scrub=args.scrub,
         )
     else:
         settings = Settings(
+            model=args.model,
             dataset=args.dataset, 
             residual=args.residual,
             logit=args.logit,
             behavior=args.behavior,
+            scrub=args.scrub,
             layer=args.layer, 
             temp=args.temp,
             leace=args.leace,

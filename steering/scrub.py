@@ -26,7 +26,7 @@ from datasets import Dataset, ClassLabel, Sequence
 from concept_erasure import ErasureMethod, LeaceFitter, LeaceEraser
 from concept_erasure.utils import assert_type, is_norm_layer, mangle_module_path
 
-from generate_vectors import *
+from generate_vectors import get_prompts, Settings, tokenize
 
 
 RESIDUAL_CLASSES = (LlamaSdpaAttention, LlamaMLP)
@@ -109,6 +109,9 @@ def scrub_llama(
     base = assert_type(LlamaModel, model.base_model)
     d = assert_type(int, base.config.hidden_size)
 
+    if not sublayers:
+        raise NotImplementedError("Only sublayers=True is supported right now")
+
     if z_column is None:
         k = -1
         scrubber = None
@@ -152,47 +155,42 @@ def scrub_llama(
             for x, z in tqdm(zip(xs, zs), desc="Fitting (attn)", total=N):
                 assert scrubber is not None
 
-                # Discard post-LN output and recompute during application to save RAM
+                # Discard post-attn output and recompute during application to save RAM
                 x = layer.input_layernorm(x.to(model.device))
+
+                pos_ids = torch.arange(0, x.shape[-2], device=x.device, dtype=torch.long)
+                pos_ids = pos_ids.unsqueeze(0).view(-1, x.shape[-2])
+                x, _, __ = layer.self_attn(x, position_ids=pos_ids)
+
                 attn_fitter.update(x[..., -1, :], z)
                 # print(x.shape, z.shape, x.dtype, z.dtype)
                 class_sums += z.squeeze(1).type_as(x).T @ x[..., -1, :]
 
             class_means = class_sums / N
             attn_vector = multiplier * (class_means[1] - class_means[0]).type_as(x)
-            scrubber.vectors[f"layers-{j}-input_layernorm"] = attn_vector
+            scrubber.vectors[f"layers-{j}-self_attn"] = attn_vector
 
             attn_eraser = attn_fitter.eraser
-            scrubber.erasers[f"layers-{j}-input_layernorm"] = attn_eraser
+            scrubber.erasers[f"layers-{j}-self_attn"] = attn_eraser
             del attn_fitter  # Save VRAM
 
-        # Run attention & MLP with the erasers we just fit
+        # Run attention with the erasers we just fit
         for i, x in tqdm(enumerate(xs), desc="Applying (attn)", total=N):
             # Bring back to the accelerator
             x = x.to(model.device)
             h = layer.input_layernorm(x)  # Recomputing from above
 
+            pos_ids = torch.arange(0, h.shape[-2], device=h.device, dtype=torch.long)
+            pos_ids = pos_ids.unsqueeze(0).view(-1, h.shape[-2])
+            h, _, __ = layer.self_attn(h, position_ids=pos_ids)
+
             # Apply the eraser
             if attn_eraser is not None and scrubber is not None:
                 h = attn_eraser(h).type_as(h) + attn_vector
 
-            pos_ids = torch.arange(0, h.shape[-2], device=h.device, dtype=torch.long)
-            pos_ids = pos_ids.unsqueeze(0).view(-1, h.shape[-2])
-
-            h, _, __ = layer.self_attn(h, position_ids=pos_ids)
             h = x = x + h  # Post-attention residual connection
 
-            # We're not scrubbing the sublayers, so run the rest of the layer
-            if not sublayers:
-                h = layer.post_attention_layernorm(h)
-                h = layer.mlp(h)
-                h = x + h  # Post-MLP residual connection
-
             xs[i] = h.to("cpu", non_blocking=True)
-
-        # Skip the part where we scrub the MLP if we're not doing that
-        if not sublayers:
-            continue
 
         mlp_eraser = None
         if scrubber is not None:
@@ -208,16 +206,19 @@ def scrub_llama(
 
                 # Discard post-LN output and recompute during application to save RAM
                 x = layer.post_attention_layernorm(x.to(model.device))
+
+                x = layer.mlp(x)
+
                 mlp_fitter.update(x[..., -1, :], z)
                 # print(x.shape, z.shape, x.dtype, z.dtype)
                 class_sums += z.squeeze(1).type_as(x).T @ x[..., -1, :]
 
             class_means = class_sums / N
             mlp_vector = multiplier * (class_means[1] - class_means[0]).type_as(x)
-            scrubber.vectors[f"layers-{j}-post_attention_layernorm"] = mlp_vector
+            scrubber.vectors[f"layers-{j}-mlp"] = mlp_vector
 
             mlp_eraser = mlp_fitter.eraser
-            scrubber.erasers[f"layers-{j}-post_attention_layernorm"] = mlp_eraser
+            scrubber.erasers[f"layers-{j}-mlp"] = mlp_eraser
             del mlp_fitter  # Save VRAM
 
         for i, x in tqdm(enumerate(xs), desc="Applying (MLP)", total=N):
@@ -225,11 +226,12 @@ def scrub_llama(
             x = x.to(model.device)
             h = layer.post_attention_layernorm(x)  # Recomputing from above
 
+            h = layer.mlp(h)
+
             # Apply the eraser
             if mlp_eraser is not None and scrubber is not None:
                 h = mlp_eraser(h).type_as(h) + mlp_vector
 
-            h = layer.mlp(h)
             h = x + h  # Post-MLP residual connection
             xs[i] = h.to("cpu", non_blocking=True)
 
@@ -252,15 +254,20 @@ def scrub_llama(
     return scrubber  #, torch.stack(losses).mean().item()
 
 
-def scrub(
-    settings: Settings
+def get_scrubber(
+    model,
+    settings: Settings,
+    multiplier: float,
 ):
+    assert settings.model == "llama3"
+    assert settings.residual
+
     tokenizer = AutoTokenizer.from_pretrained(settings.model_id)
-    model = AutoModelForCausalLM.from_pretrained(
-        settings.model_id,
-        torch_dtype=torch.bfloat16,
-        device_map="auto",
-    )
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     settings.model_id,
+    #     torch_dtype=torch.bfloat16,
+    #     device_map="auto",
+    # )
 
     # load positive and negative prompts
     positives, negatives = get_prompts(settings)
@@ -280,7 +287,7 @@ def scrub(
     scrubber = scrub_llama(
         model,
         ds,
-        multiplier=1.0,
+        multiplier=multiplier,
         z_column="label",
         batch_size=1,
         method="leace",
@@ -288,11 +295,12 @@ def scrub(
         affine=True,
     )
 
+    # test
     with scrubber.scrub(model):
         pass
 
-    # layer_list = get_residual_layer_list(model) if settings.residual else get_layer_list(model)
+    return scrubber
 
 # %%
 
-scrub(Settings())
+# get_scrubber(Settings(residual=True), 1.03)
