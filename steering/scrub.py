@@ -17,6 +17,8 @@ from transformers.models.llama.modeling_llama import (
     LlamaAttention,
     LlamaDecoderLayer,
     apply_rotary_pos_emb,
+    LlamaSdpaAttention,
+    LlamaMLP,
 )
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import Dataset, ClassLabel, Sequence
@@ -27,8 +29,8 @@ from concept_erasure.utils import assert_type, is_norm_layer, mangle_module_path
 from generate_vectors import *
 
 
+RESIDUAL_CLASSES = (LlamaSdpaAttention, LlamaMLP)
 
-# %%
 class CAAScrubber:
     """Wrapper for a dictionary mapping module paths to `LeaceEraser` objects and CAA vectors."""
 
@@ -36,7 +38,7 @@ class CAAScrubber:
         super().__init__()
 
         self.erasers: dict[str, LeaceEraser] = {}
-        self.vectors: dict[str, torch.Tensor] = {}
+        self.vectors: dict[str, torch.Tensor] = {}  # Includes multiplier!
         self.pre_hook = pre_hook
 
     @contextmanager
@@ -81,7 +83,7 @@ class CAAScrubber:
                 else mod.register_forward_hook(partial(post_wrapper, name=name))
             )
             for name, mod in model.named_modules()
-            if is_norm_layer(mod) and mangle_module_path(name) in self.erasers
+            if type(mod) in RESIDUAL_CLASSES and mangle_module_path(name) in self.erasers
         ]
         assert len(handles) == len(self.erasers), "Not all erasers can be applied"
 
@@ -97,6 +99,7 @@ class CAAScrubber:
 def scrub_llama(
     model: LlamaForCausalLM,
     train: Dataset,
+    multiplier: float,
     z_column: str | None,
     batch_size: int = 1,
     method: ErasureMethod = "leace",
@@ -143,14 +146,21 @@ def scrub_llama(
                 d, k, affine=affine, device=model.device, method=method
             )
 
+            class_sums = torch.zeros(k, d, device=model.device)
+
             # Fit the next eraser and vector on the previous hidden states
             for x, z in tqdm(zip(xs, zs), desc="Fitting (attn)", total=N):
                 assert scrubber is not None
 
                 # Discard post-LN output and recompute during application to save RAM
                 x = layer.input_layernorm(x.to(model.device))
-                print(x.shape, z.shape)
-                attn_fitter.update(x, z)
+                attn_fitter.update(x[..., -1, :], z)
+                # print(x.shape, z.shape, x.dtype, z.dtype)
+                class_sums += z.squeeze(1).type_as(x).T @ x[..., -1, :]
+
+            class_means = class_sums / N
+            attn_vector = multiplier * (class_means[1] - class_means[0]).type_as(x)
+            scrubber.vectors[f"layers-{j}-input_layernorm"] = attn_vector
 
             attn_eraser = attn_fitter.eraser
             scrubber.erasers[f"layers-{j}-input_layernorm"] = attn_eraser
@@ -164,7 +174,7 @@ def scrub_llama(
 
             # Apply the eraser
             if attn_eraser is not None and scrubber is not None:
-                h = attn_eraser(h).type_as(h)
+                h = attn_eraser(h).type_as(h) + attn_vector
 
             pos_ids = torch.arange(0, h.shape[-2], device=h.device, dtype=torch.long)
             pos_ids = pos_ids.unsqueeze(0).view(-1, h.shape[-2])
@@ -190,13 +200,21 @@ def scrub_llama(
                 d, k, affine=affine, device=model.device, method=method
             )
 
+            class_sums = torch.zeros(k, d, device=model.device)
+
             # Fit the next eraser on the previous hidden states
             for x, z in tqdm(zip(xs, zs), desc="Fitting (MLP)", total=N):
                 assert scrubber is not None
 
                 # Discard post-LN output and recompute during application to save RAM
                 x = layer.post_attention_layernorm(x.to(model.device))
-                mlp_fitter.update(x, z)
+                mlp_fitter.update(x[..., -1, :], z)
+                # print(x.shape, z.shape, x.dtype, z.dtype)
+                class_sums += z.squeeze(1).type_as(x).T @ x[..., -1, :]
+
+            class_means = class_sums / N
+            mlp_vector = multiplier * (class_means[1] - class_means[0]).type_as(x)
+            scrubber.vectors[f"layers-{j}-post_attention_layernorm"] = mlp_vector
 
             mlp_eraser = mlp_fitter.eraser
             scrubber.erasers[f"layers-{j}-post_attention_layernorm"] = mlp_eraser
@@ -209,29 +227,29 @@ def scrub_llama(
 
             # Apply the eraser
             if mlp_eraser is not None and scrubber is not None:
-                h = mlp_eraser.eraser(h).type_as(h)
+                h = mlp_eraser(h).type_as(h) + mlp_vector
 
             h = layer.mlp(h)
             h = x + h  # Post-MLP residual connection
             xs[i] = h.to("cpu", non_blocking=True)
 
-    for batch, x in tqdm(zip(train.iter(batch_size), xs), total=N):
-        assert isinstance(batch, dict)
-        tokens = assert_type(torch.Tensor, batch["input_ids"])
+    # for batch, x in tqdm(zip(train.iter(batch_size), xs), total=N):
+    #     assert isinstance(batch, dict)
+    #     tokens = assert_type(torch.Tensor, batch["input_ids"])
 
-        x = x.to(model.device)
-        x = base.norm(x)
-        logits = model.lm_head(x)
+    #     x = x.to(model.device)
+    #     x = base.norm(x)
+    #     logits = model.lm_head(x)
 
-        labels = tokens.to(logits.device)
-        shift_logits = logits[:, :-1, :].contiguous()
-        labels = labels[:, 1:].contiguous()
-        lm_loss = F.cross_entropy(
-            shift_logits.view(-1, shift_logits.size(-1)), labels.view(-1)
-        )
-        losses.append(lm_loss)
+    #     labels = tokens.to(logits.device)
+    #     shift_logits = logits[:, :-1, :].contiguous()
+    #     labels = labels[:, 1:].contiguous()
+    #     lm_loss = F.cross_entropy(
+    #         shift_logits.view(-1, shift_logits.size(-1)), labels.view(-1)
+    #     )
+    #     losses.append(lm_loss)
 
-    return scrubber, torch.stack(losses).mean().item()
+    return scrubber  #, torch.stack(losses).mean().item()
 
 
 def scrub(
@@ -247,8 +265,8 @@ def scrub(
     # load positive and negative prompts
     positives, negatives = get_prompts(settings)
 
-    positive_ids = [tokenize(p, tokenizer) for p in positives]
-    negative_ids = [tokenize(n, tokenizer) for n in negatives]
+    positive_ids = [tokenize(p, tokenizer)[0] for p in positives]
+    negative_ids = [tokenize(n, tokenizer)[0] for n in negatives]
 
     # Create the dataset
     ds = Dataset.from_dict({
@@ -259,9 +277,10 @@ def scrub(
     # Define the features explicitly
     ds = ds.cast_column("label", Sequence(ClassLabel(num_classes=2, names=["negative", "positive"])))
     
-    scrubber, loss = scrub_llama(
+    scrubber = scrub_llama(
         model,
         ds,
+        multiplier=1.0,
         z_column="label",
         batch_size=1,
         method="leace",
@@ -269,52 +288,11 @@ def scrub(
         affine=True,
     )
 
+    with scrubber.scrub(model):
+        pass
+
     # layer_list = get_residual_layer_list(model) if settings.residual else get_layer_list(model)
 
 # %%
 
 scrub(Settings())
-# %%
-
-print(tokenize( (get_prompts(Settings())[0][0]), AutoTokenizer.from_pretrained(Settings().model_id),).shape)
-
-# %%
-# change pwd to ..
-import os
-#os.chdir("..")
-
-
-settings = Settings()
-
-tokenizer = AutoTokenizer.from_pretrained(settings.model_id)
-model = AutoModelForCausalLM.from_pretrained(
-    settings.model_id,
-    torch_dtype=torch.bfloat16,
-    device_map="auto",
-)
-
-# load positive and negative prompts
-positives, negatives = get_prompts(settings)
-
-positive_ids = [tokenize(p, tokenizer) for p in positives]
-negative_ids = [tokenize(n, tokenizer) for n in negatives]
-
-ds = Dataset.from_dict({"input_ids": positive_ids + negative_ids, "labels": [[1]] * len(positive_ids) + [[0]] * len(negative_ids)})
-
-print(ds)
-
-# %%
-from datasets import Dataset, ClassLabel, Sequence
-
-# Create the dataset
-ds = Dataset.from_dict({
-    "input_ids": positive_ids + negative_ids,
-    "labels": [[1]] * len(positive_ids) + [[0]] * len(negative_ids)
-})
-
-# Define the features explicitly
-ds = ds.cast_column("labels", Sequence(ClassLabel(num_classes=2, names=["negative", "positive"])))
-
-print(ds["labels"])
-
-print(ds.features["labels"].feature.num_classes)

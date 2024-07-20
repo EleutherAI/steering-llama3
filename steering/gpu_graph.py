@@ -73,8 +73,6 @@ def launch_available(ctx: Context):
                 print("All jobs running or completed :)")
             elif avail_jobs:
                 print("[WARN] No free GPUs -- this should not happen! :(")
-                print(ctx)
-                raise Exception("No free GPUs")
             else:
                 print("Blocked on dependencies :|")
             print(f"Running: {[j for j in ctx.claimed if j not in ctx.completed]}")
