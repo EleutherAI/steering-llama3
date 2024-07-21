@@ -39,6 +39,7 @@ def copy_tarball(src, dst_dir):
 
     # check that the child directory exists
     if not os.path.exists(os.path.join(tmp_dir, child)):
+        shutil.rmtree(tmp_dir)
         raise ValueError(f"Target directory not found in tarball: {child}")
 
     # copy the contents of the temporary directory
