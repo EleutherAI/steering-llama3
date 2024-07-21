@@ -290,7 +290,7 @@ def get_scrubber(
         multiplier=multiplier,
         z_column="label",
         batch_size=1,
-        method="leace",
+        method=settings.leace,
         sublayers=True,
         affine=True,
     )
