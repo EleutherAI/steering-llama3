@@ -64,6 +64,8 @@ class Settings:
     def model_id(self):
         if self.model == "llama3":
             return "meta-llama/Meta-Llama-3-8B-Instruct"
+        elif self.model == "llama31":
+            return "meta-llama/Meta-Llama-3.1-8B-Instruct"
         else:
             raise ValueError(f"Unknown model: {self.model}")
 

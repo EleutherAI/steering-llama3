@@ -3,17 +3,49 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch, os
 
 model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+model_id2 = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 
 #%%
 hf_token = os.getenv("HF_TOKEN")
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)#, token=hf_token)
+tokenizer2 = AutoTokenizer.from_pretrained(model_id2)#, token=hf_token)
+# %%
+print(type(tokenizer))
+print(type(tokenizer2))
+
+# print info about tokenizer model
+print((tokenizer2.name_or_path))
 #%%
 
-tokenizer.apply_chat_template(
-    [{"role": "system", "content": "dog dog dog (A) (B) (A) dog dog"}],
+print(
+    tokenizer2.decode(tokenizer2.apply_chat_template(
+    [{"role": "assistant", "content": "(A"}],
     add_generation_prompt=False,
-)
+)))
+
+print(
+tokenizer.decode(tokenizer.apply_chat_template(
+    [{"role": "assistant", "content": "(A"}],
+    add_generation_prompt=False,
+)))
+# %%
+# without decode
+print((tokenizer2.apply_chat_template(
+    [{"role": "assistant", "content": "(A"}],
+    add_generation_prompt=False,
+        return_tensors="pt",
+))[0].tolist())
+print(
+tokenizer.apply_chat_template(
+    [{"role": "assistant", "content": "(A"}],
+    add_generation_prompt=False,
+))
+#%%
+print(tokenizer("(A"))
+print(tokenizer2("(A"))
+print(tokenizer("(B"))
+print(tokenizer2("(B"))
 #%%
 model = AutoModelForCausalLM.from_pretrained(
     model_id,

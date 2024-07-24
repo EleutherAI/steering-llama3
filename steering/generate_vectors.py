@@ -183,6 +183,10 @@ def tokenize(messages, tokenizer):
         add_generation_prompt=gen_prompt,
         return_tensors="pt",
     )
+    if not gen_prompt and 'Llama-3.1' in tokenizer.name_or_path:
+        assert input_ids[:, -4:].tolist() == [128006, 78191, 128007, 271]
+        # remove gen prompt
+        input_ids = input_ids[:, :-4]
     if messages[-1]['role'] == 'assistant':
         input_ids = input_ids[:, :-1]  # remove eot token
 
