@@ -184,7 +184,7 @@ def tokenize(messages, tokenizer):
         return_tensors="pt",
     )
     if not gen_prompt and 'Llama-3.1' in tokenizer.name_or_path:
-        assert input_ids[:, -4:].tolist() == [128006, 78191, 128007, 271]
+        assert input_ids[0, -4:].tolist() == [128006, 78191, 128007, 271], input_ids[:, -4:].tolist()
         # remove gen prompt
         input_ids = input_ids[:, :-4]
     if messages[-1]['role'] == 'assistant':
