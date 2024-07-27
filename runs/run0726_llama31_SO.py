@@ -62,7 +62,7 @@ for dataset in ["ab", "openr", "opencon", "caa", "abcon", "prompts"]:
 
                     multstep = maxmult / 5
 
-                    steer_suffix = f"{cmd_suffix} --layer {layer} --mults $(seq -{maxmult - multstep/2} {multstep} maxmult)"
+                    steer_suffix = f"{cmd_suffix} --layer {layer} --mults $(seq -{maxmult - multstep/2} {multstep} {maxmult})"
                     # NB: overwrite was originally unconditional
                     # if behavior is None:
                     #     steer_suffix += " --overwrite"
