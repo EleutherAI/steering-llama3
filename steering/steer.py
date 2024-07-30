@@ -198,9 +198,10 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
                 fitter = LeaceFitter.fit(x, z, method=settings.leace)
                 eraser = fitter.eraser
 
-                sigma = fitter.sigma_xx
-                L, V = torch.linalg.eigh(sigma)
-                print("L", L)
+                if settings.leace == "leace":
+                    sigma = fitter.sigma_xx
+                    L, V = torch.linalg.eigh(sigma)
+                    print("L", L)
             else:
                 eraser = LeaceEraser.fit(x, z, method=settings.leace)
             print(f"Eraser fitted for layer {layer}!")
