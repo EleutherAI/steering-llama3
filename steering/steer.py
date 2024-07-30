@@ -9,7 +9,7 @@ from typing import Optional, Union
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from concept_erasure import LeaceEraser, QuadraticEditor, QuadraticFitter
+from concept_erasure import LeaceEraser, QuadraticEditor, QuadraticFitter, LeaceFitter
 
 from common import Settings, parse_settings_args
 from refusal_test_open_ended import get_harmful_test_prompts, get_harmless_test_prompts
@@ -31,7 +31,7 @@ class ActivationSteerer:
     end: Optional[int] = None
     trivial: bool = False
 
-    def steer_activations(self, multiplier: float):
+    def steer_activations(self, multiplier: float, layer: int = None):
         if self.trivial:
             return lambda model, input, output: output
 
@@ -74,7 +74,17 @@ class ActivationSteerer:
         if self.eraser is not None:
             etype = self.eraser.proj_left.dtype
             def hook(model, input, output):
+                if TEST:
+                    output_copy = output[0].clone().detach()
                 output[0][..., self.start:self.end, :] = self.eraser(output[0][..., self.start:self.end, :].to(etype)).to(output[0].dtype)
+                if TEST:
+                    print()
+                    if layer is not None:
+                        print(f"Layer {layer}")
+                    print("DIFF:", (output_copy - output[0]).norm())
+                    print("COPY:", output_copy.norm())
+                    print("NEW:", output[0].norm())
+                    print()
                 output[0][..., self.start:self.end, :] += u
                 # if TEST:
                 #     print(self.eraser.proj_left.shape, u.shape)
@@ -136,7 +146,7 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
         fitter.update_single(neg, 0)
 
         editor = fitter.editor()
-        print("Editor fitted!")
+        print(f"Editor fitted for layer {layer}!")
 
         return ActivationSteerer(vec, settings, editor, trivial=trivial)
 
@@ -150,7 +160,7 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
         z = torch.cat([torch.ones(len(pos)), torch.zeros(len(neg))]).cuda().to(torch.float64)
 
         eraser = LeaceEraser.fit(x, z, method=settings.leace)
-        print("Eraser fitted!")
+        print(f"Eraser fitted for layer {layer}!")
 
         lda = eraser.proj_right.squeeze(0)
         act_mean = x.mean(dim=0)
@@ -166,17 +176,17 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
         fitter.update_single(neg, 0)
 
         editor = fitter.editor()
-        print("Editor fitted!")
+        print(f"Editor fitted for layer {layer}!")
 
         return ActivationSteerer(vec, settings, editor, threshold, lda, trivial=trivial)
 
     if settings.leace:
         if settings.logit:
-            print("Loading logit eraser...")
+            print(f"Loading logit eraser for layer {layer}...")
             eraser = torch.load(settings.eraser_path(layer))
-            print("Eraser loaded!")
+            print(f"Eraser loaded for layer {layer}!")
         else:
-            print("Fitting eraser...")
+            print(f"Fitting eraser for layer {layer}...")
             # [N, 1, D] -> [N, D]
             pos = torch.load(settings.acts_path(positive=True, layer=layer)).cuda().squeeze(1)
             neg = torch.load(settings.acts_path(positive=False, layer=layer)).cuda().squeeze(1)
@@ -184,8 +194,25 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
             x = torch.cat([pos, neg]).to(torch.float64)
             z = torch.cat([torch.ones(len(pos)), torch.zeros(len(neg))]).cuda().to(torch.float64)
 
-            eraser = LeaceEraser.fit(x, z, method=settings.leace)
-            print("Eraser fitted!")
+            if TEST:
+                fitter = LeaceFitter.fit(x, z, method=settings.leace)
+                eraser = fitter.eraser
+
+                sigma = fitter.sigma_xx
+                L, V = torch.linalg.eigh(sigma)
+                print("L", L)
+            else:
+                eraser = LeaceEraser.fit(x, z, method=settings.leace)
+            print(f"Eraser fitted for layer {layer}!")
+
+            if TEST:
+                print(eraser.proj_left.shape, eraser.proj_right.shape)
+                print(eraser.proj_right @ eraser.proj_left)
+                print(eraser.proj_right.norm(), eraser.proj_left.norm())
+                print(eraser.proj_right.norm() * eraser.proj_left.norm())
+                # cosine sim
+                print("cosine sim", eraser.proj_right @ eraser.proj_left / eraser.proj_right.norm() / eraser.proj_left.norm())
+                print()
 
         return ActivationSteerer(vec, settings, eraser, trivial=trivial)
 
@@ -276,7 +303,7 @@ def steer(
                 layer_list[i].mlp.down_proj.bias = torch.nn.Parameter(mult * steerer.vector.cuda())
         else:
             handles = {
-                i: layer_list[i].register_forward_hook(steerer.steer_activations(mult))
+                i: layer_list[i].register_forward_hook(steerer.steer_activations(mult, i))
                 for i, steerer in steerers.items()
             }
 
