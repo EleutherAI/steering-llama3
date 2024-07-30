@@ -14,8 +14,11 @@ from utils import cached_property, get_layer_list, force_save, get_residual_laye
 from common import Settings, parse_settings_args
 
 
-A_TOKEN = 4444  # '(A'
-B_TOKEN = 5462  # '(B'
+A_TOKEN_LLAMA3 = 4444  # '(A'
+B_TOKEN_LLAMA3 = 5462  # '(B'
+
+A_TOKEN_LLAMA2 = 29909  # 'A'
+B_TOKEN_LLAMA2 = 29933  # 'B'
 
 DATASET_ROOT = "datasets/"
 
@@ -177,17 +180,40 @@ def get_prompts(
         raise ValueError(f"Unknown dataset: {settings.dataset}")
 
 def tokenize(messages, tokenizer):
+    if 'Llama-3' in tokenizer.name_or_path:
+        return tokenize_llama3(messages, tokenizer)
+    elif 'Llama-2' in tokenizer.name_or_path:
+        return tokenize_llama2(messages, tokenizer)
+    else:
+        raise ValueError(f"Unknown model: {tokenizer.name_or_path}")
+
+def tokenize_llama2(messages, tokenizer):
+    gen_prompt = (messages[-1]['role'] == 'user')
+    input_ids = tokenizer.apply_chat_template(
+        messages,
+        add_generation_prompt=False,
+        return_tensors="pt",
+    )
+    if not gen_prompt: #  messages[-1]['role'] == 'assistant':
+            
+        assert input_ids[0, -2:].tolist() == [29871, 2], input_ids[:, -5:].tolist()
+        input_ids = input_ids[:, :-2]  # remove eot tokens
+
+    return input_ids
+
+def tokenize_llama3(messages, tokenizer):
     gen_prompt = (messages[-1]['role'] == 'user')
     input_ids = tokenizer.apply_chat_template(
         messages,
         add_generation_prompt=gen_prompt,
         return_tensors="pt",
     )
-    if not gen_prompt and 'Llama-3.1' in tokenizer.name_or_path:
-        assert input_ids[0, -4:].tolist() == [128006, 78191, 128007, 271], input_ids[:, -4:].tolist()
-        # remove gen prompt
-        input_ids = input_ids[:, :-4]
-    if messages[-1]['role'] == 'assistant':
+    if not gen_prompt: #  messages[-1]['role'] == 'assistant':
+        if input_ids[0, -4:].tolist() == [128006, 78191, 128007, 271]:
+            # remove gen prompt -- in case old bug comes back
+            input_ids = input_ids[:, :-4]
+
+        assert input_ids[0, -1:].tolist() == [128009], input_ids[:, -4:].tolist()
         input_ids = input_ids[:, :-1]  # remove eot token
 
     return input_ids
@@ -238,6 +264,9 @@ def generate_vectors(
             input_ids = input_ids.to(model.device)
             
             if settings.logit:
+                A_TOKEN = A_TOKEN_LLAMA3 if 'Llama-3' in tokenizer.name_or_path else A_TOKEN_LLAMA2
+                B_TOKEN = B_TOKEN_LLAMA3 if 'Llama-3' in tokenizer.name_or_path else B_TOKEN_LLAMA2
+                
                 last_tok = input_ids[:, -1]
                 if last_tok not in [A_TOKEN, B_TOKEN]:
                     if settings.behavior == "survival-instinct":

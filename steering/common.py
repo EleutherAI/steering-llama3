@@ -66,6 +66,8 @@ class Settings:
             return "meta-llama/Meta-Llama-3-8B-Instruct"
         elif self.model == "llama31":
             return "meta-llama/Meta-Llama-3.1-8B-Instruct"
+        elif self.model == "llama2":
+            return "meta-llama/Llama-2-7b-chat-hf"
         else:
             raise ValueError(f"Unknown model: {self.model}")
 
