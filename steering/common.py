@@ -130,7 +130,7 @@ def parse_settings_args(parser, generate=False):
     if not generate:
         parser.add_argument("--layer", type=lambda x: int(x) if x != "all" else x, default=15)
         parser.add_argument("--temp", type=float, default=1.5)
-        parser.add_argument("--leace", type=str, default=None, choices=["leace", "orth", "quad"])
+        parser.add_argument("--leace", type=str, default=None, choices=["leace", "orth", "quad", "quadlda"])
         parser.add_argument("--toks", type=str, default=None, choices=["before", "after"])
 
     args = parser.parse_args()
