@@ -120,11 +120,11 @@ class Settings:
 
 
 def parse_settings_args(parser, generate=False):
-    parser.add_argument("--dataset", type=str, choices=["prompts", "caa", "ab", "opencon", "openr", "abcon"], default="prompts")
+    parser.add_argument("--dataset", type=str, choices=["prompts", "caa", "openr", "ab", "opencon", "abcon"], default="prompts")
     parser.add_argument("--residual", action="store_true")
     parser.add_argument("--logit", action="store_true")
     parser.add_argument("--behavior", type=str, default=None, choices=ALL_BEHAVIORS)
-    parser.add_argument("--model", type=str, default="llama3")
+    parser.add_argument("--model", type=str, default="llama3", choices=["llama3", "llama31", "llama2"])
     parser.add_argument("--scrub", action="store_true")
 
     if not generate:
