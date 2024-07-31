@@ -89,7 +89,9 @@ def plot(settings, mults, verbose=False):
 def plot_all(filter_settings=None, verbose=False):
     settings_mults = {}
     for filename in os.listdir("artifacts/responses"):
-        #print(filename)
+        # skip .gitkeep
+        if filename == ".gitkeep":
+            continue
         suffix = filename.split("responses_")[1].split(".json")[0]
         if suffix.endswith("__pretty"):
             continue
