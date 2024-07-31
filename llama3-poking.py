@@ -59,6 +59,7 @@ print(repr(tokenizer3.decode([29871])))
 print(repr(tokenizer3.decode([29871, 29871])))
 print(repr(tokenizer3.decode([2, 2])))
 print(repr(tokenizer3.decode([29914, 25580, 29962, 313, 29909, 29871, 2])))
+print(repr(tokenizer3.decode([29914, 25580, 29962, 259, 2])))
 
 print("chat template ==========")
 toks = tokenizer3.apply_chat_template(
