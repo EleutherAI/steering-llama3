@@ -159,7 +159,7 @@ def load_steerer(settings: Settings, layer: int, trivial: bool = False):
         x = torch.cat([pos, neg]).to(torch.float64)
         z = torch.cat([torch.ones(len(pos)), torch.zeros(len(neg))]).cuda().to(torch.float64)
 
-        eraser = LeaceEraser.fit(x, z, method=settings.leace)
+        eraser = LeaceEraser.fit(x, z, method="leace")
         print(f"Eraser fitted for layer {layer}!")
 
         lda = eraser.proj_right.squeeze(0)
