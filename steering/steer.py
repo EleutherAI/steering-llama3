@@ -56,12 +56,13 @@ class ActivationSteerer:
         if self.settings.leace == "quadlda":
             if multiplier == 0:
                 return lambda model, input, output: output
-
-            # get source classes with class_vector and threshold
-            sources = (output[0] @ self.class_vector > self.threshold).to(int)
+            
             target = int(multiplier > 0)
 
             def hook(model, input, output):
+                # get source classes with class_vector and threshold
+                sources = (output[0] @ self.class_vector > self.threshold).to(int)
+                
                 output[0][..., self.start:self.end, :] = self.eraser(
                     output[0][..., self.start:self.end, :].to(torch.float64), 
                     sources, 
