@@ -146,24 +146,27 @@ def get_prompts_rimsky(
     if settings.dataset == 'ab':
         with open(DATASET_ROOT+f'CAA/generate/{behavior}/generate_dataset.json') as f:
             data = json.load(f)
-    elif settings.dataset == 'openr':
+    elif settings.dataset in ['openr', 'open']:
         with open(DATASET_ROOT+f'CAA/generate/{behavior}/generate_openresponse_dataset.json') as f:
             data = json.load(f)
 
     positives = []
     negatives = []
 
+    trim = -1 if settings.dataset in ['openr', 'ab'] else None
+
     for row in data:
         # remove last character which is a close-parenthesis
+        # also remove last char for openr, for backwards compatibility
         messages = [
             {"role": "user", "content": row['question']},
-            {"role": "assistant", "content": row['answer_matching_behavior'][:-1]},
+            {"role": "assistant", "content": row['answer_matching_behavior'][:trim]},
         ]
         positives.append(messages)
 
         messages = [
             {"role": "user", "content": row['question']},
-            {"role": "assistant", "content": row['answer_not_matching_behavior'][:-1]},
+            {"role": "assistant", "content": row['answer_not_matching_behavior'][:trim]},
         ]
         negatives.append(messages)
 
@@ -174,7 +177,7 @@ def get_prompts(
 ):
     if settings.dataset in ['prompts', 'caa', 'opencon', 'abcon']:
         return get_prompts_harm(settings)
-    elif settings.dataset in ['ab', 'openr']:
+    elif settings.dataset in ['ab', 'openr', 'open']:
         return get_prompts_rimsky(settings)
     else:
         raise ValueError(f"Unknown dataset: {settings.dataset}")
