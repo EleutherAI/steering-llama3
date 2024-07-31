@@ -179,14 +179,6 @@ def get_prompts(
     else:
         raise ValueError(f"Unknown dataset: {settings.dataset}")
 
-def tokenize(messages, tokenizer):
-    if 'Llama-3' in tokenizer.name_or_path:
-        return tokenize_llama3(messages, tokenizer)
-    elif 'Llama-2' in tokenizer.name_or_path:
-        return tokenize_llama2(messages, tokenizer)
-    else:
-        raise ValueError(f"Unknown model: {tokenizer.name_or_path}")
-
 def tokenize_llama2(messages, tokenizer):
     gen_prompt = (messages[-1]['role'] == 'user')
     input_ids = tokenizer.apply_chat_template(
@@ -196,7 +188,8 @@ def tokenize_llama2(messages, tokenizer):
     )
     if not gen_prompt: #  messages[-1]['role'] == 'assistant':
             
-        assert input_ids[0, -2:].tolist() == [29871, 2], input_ids[:, -5:].tolist()
+        tail = input_ids[0, -2:].tolist()
+        assert tail == [29871, 2] or tail == [259, 2], input_ids[:, -5:].tolist()
         input_ids = input_ids[:, :-2]  # remove eot tokens
 
     return input_ids
@@ -217,6 +210,14 @@ def tokenize_llama3(messages, tokenizer):
         input_ids = input_ids[:, :-1]  # remove eot token
 
     return input_ids
+
+def tokenize(messages, tokenizer):
+    if 'Llama-3' in tokenizer.name_or_path:
+        return tokenize_llama3(messages, tokenizer)
+    elif 'Llama-2' in tokenizer.name_or_path:
+        return tokenize_llama2(messages, tokenizer)
+    else:
+        raise ValueError(f"Unknown model: {tokenizer.name_or_path}")
 
 def generate_vectors(
     settings: Settings,
