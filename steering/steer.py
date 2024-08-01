@@ -63,13 +63,18 @@ class ActivationSteerer:
                 # get source classes with class_vector and threshold
                 sources = (output[0] @ self.class_vector.type_as(output[0]) > self.threshold.type_as(output[0])).to(int)
 
+                # necessary due to the way the eraser is implemented
+                # otherwise we'd have to iterate over the batch dimension
+                assert output[0].shape[0] == 1
+                assert sources.shape[0] == 1
+
                 if TEST:
                     print(sources.shape, sources.dtype, sources.device)
                     print(output[0].shape, output[0].dtype, output[0].device)
                     print(target)
                 output[0][..., self.start:self.end, :] = self.eraser(
-                    output[0][..., self.start:self.end, :].to(torch.float64), 
-                    sources, 
+                    output[0][0, self.start:self.end, :].to(torch.float64), 
+                    sources[0, self.start:self.end], 
                     target
                 ).type_as(output[0])
                 return output
