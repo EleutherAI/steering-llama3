@@ -13,9 +13,7 @@ commands = {}
 dependencies = {}
 port = 8000
 
-# TODO add quad!!!!
-
-for dataset in ["ab", "openr", "opencon", "caa", "abcon", "prompts"]:
+for dataset in ["open", "ab", "openr", "opencon", "abcon", "caa", "prompts"]:
     for behavior in ((ALL_BEHAVIORS + [None]) if dataset in ["ab", "openr"] else [None]):
         for layer in ["all", 15]:
             for logit in [False]:
@@ -39,7 +37,7 @@ for dataset in ["ab", "openr", "opencon", "caa", "abcon", "prompts"]:
                 commands[f"gen_{job_suffix}"] = cmd
                 dependencies[f"gen_{job_suffix}"] = []
 
-                for leace in ["quadlda"]:
+                for leace in ["quadlda", "quad"]:
                     # if logit and leace is not None:
                     #     continue
                     # if layer == 15 and leace is not None:
