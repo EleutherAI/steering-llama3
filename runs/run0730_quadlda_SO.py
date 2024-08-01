@@ -13,8 +13,10 @@ commands = {}
 dependencies = {}
 port = 8000
 
-for dataset in ["open", "ab", "openr", "opencon", "abcon", "caa", "prompts"]:
-    for behavior in ((ALL_BEHAVIORS + [None]) if dataset in ["ab", "openr"] else [None]):
+# TODO think abt also doing openr
+
+for dataset in ["open", "ab", "opencon", "abcon", "caa", "prompts"]:
+    for behavior in ((ALL_BEHAVIORS + [None]) if dataset in ["ab", "open", "openr"] else [None]):
         for layer in ["all", 15]:
             for logit in [False]:
                 # if logit and dataset not in ["ab", "abcon"]:
@@ -23,7 +25,7 @@ for dataset in ["open", "ab", "openr", "opencon", "abcon", "caa", "prompts"]:
                 # if logit and layer == 15:
                 #     continue
 
-                cmd_suffix = f"--dataset {dataset} --model llama31"
+                cmd_suffix = f"--dataset {dataset} --model llama3"
                 if behavior is not None:
                     cmd_suffix += f" --behavior {behavior}"
                 if layer == "all":
