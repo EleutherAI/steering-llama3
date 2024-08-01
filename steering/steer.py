@@ -61,7 +61,7 @@ class ActivationSteerer:
 
             def hook(model, input, output):
                 # get source classes with class_vector and threshold
-                sources = (output[0] @ self.class_vector > self.threshold).to(int)
+                sources = (output[0] @ self.class_vector.type_as(output[0]) > self.threshold.type_as(output[0])).to(int)
                 
                 output[0][..., self.start:self.end, :] = self.eraser(
                     output[0][..., self.start:self.end, :].to(torch.float64), 
