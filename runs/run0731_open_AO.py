@@ -26,7 +26,7 @@ for dataset in ["open"]:
                 # if logit and layer == 15:
                 #     continue
 
-                cmd_suffix = f"--dataset {dataset} --model llama31"
+                cmd_suffix = f"--dataset {dataset} --model llama3"
                 if behavior is not None:
                     cmd_suffix += f" --behavior {behavior}"
                 if layer == "all":
@@ -64,7 +64,7 @@ for dataset in ["open"]:
                     multstep = maxmult / 5
 
 
-                    steer_suffix = f"{cmd_suffix} --layer {layer} --mults $(seq -{maxmult - multstep/2} {multstep} {maxmult})"
+                    steer_suffix = f"{cmd_suffix} --layer {layer} --mults $(seq -{maxmult} {multstep} {maxmult})"
                     # NB: overwrite was originally unconditional
                     # if behavior is None:
                     #     steer_suffix += " --overwrite"
