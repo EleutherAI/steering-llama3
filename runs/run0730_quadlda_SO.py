@@ -13,11 +13,11 @@ commands = {}
 dependencies = {}
 port = 8000
 
-# TODO think abt also doing openr
+# TODO shuffle things onto CPU to do layer=all
 
 for dataset in ["open", "ab", "opencon", "abcon", "caa", "prompts"]:
     for behavior in ((ALL_BEHAVIORS + [None]) if dataset in ["ab", "open", "openr"] else [None]):
-        for layer in ["all", 15]:
+        for layer in [15]:
             for logit in [False]:
                 # if logit and dataset not in ["ab", "abcon"]:
                 #     continue
