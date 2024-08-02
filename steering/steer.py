@@ -19,6 +19,7 @@ from scrub import get_scrubber, CAAScrubber, mangle_module_path
 
 from torch.profiler import profile, record_function, ProfilerActivity
 
+TEST = False
 
 @dataclass
 class ActivationSteerer:
