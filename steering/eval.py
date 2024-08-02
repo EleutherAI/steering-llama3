@@ -13,7 +13,7 @@ from refusal_test_open_ended import eval_prompt, EVAL_MODEL
 from caa_test_open_ended import eval_prompt as caa_eval_prompt
 
 
-def evaluate(settings, mults, port, overwrite):
+def evaluate(settings, mults, port, overwrite=False):
     tokenizer = AutoTokenizer.from_pretrained(EVAL_MODEL)
 
     score_field = "scores" if settings.behavior is None else "num_scores"
