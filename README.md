@@ -1,5 +1,7 @@
 # Steering Llama 3 (and Llama 2)
 
+See also the [arxiv paper](https://arxiv.org/abs/2411.09003) and [twitter thread](https://x.com/norabelrose/status/1859307287112007896) 
+
 Requirements:
 
 `pip install -r requirements`
